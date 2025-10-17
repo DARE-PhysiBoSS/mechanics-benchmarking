@@ -21,6 +21,12 @@ class algorithms
 	static constexpr double relative_difference_print_threshold_ = 0.001;
 	static constexpr double absolute_difference_print_threshold_ = 1e-6;
 
+	std::pair<double, double> common_validate(mechanics_solver& alg, mechanics_solver& ref, const problem_t& problem);
+
+	void append_params(std::ostream& os, const nlohmann::json& params, bool header);
+
+	std::unique_ptr<mechanics_solver> get_solver(const std::string& alg);
+
 public:
 	algorithms(bool double_precision, bool verbose);
 

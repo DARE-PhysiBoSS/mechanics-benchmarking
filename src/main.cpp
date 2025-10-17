@@ -20,16 +20,6 @@ nlohmann::json load_json_file(const std::string& filename)
 	return j;
 }
 
-// Helper function to parse problem from JSON
-problem_t parse_problem(const nlohmann::json& json)
-{
-	problem_t problem;
-	problem.timestep = json.at("timestep").get<double>();
-	problem.agents_count = json.at("agents_count").get<std::size_t>();
-	problem.agent_types_count = json.at("agent_types_count").get<std::size_t>();
-	return problem;
-}
-
 int main(int argc, char* argv[])
 {
 	argparse::ArgumentParser program("mechanize", "1.0");
@@ -92,7 +82,7 @@ int main(int argc, char* argv[])
 
 		nlohmann::json params = load_json_file(params_file);
 		nlohmann::json problem_json = load_json_file(problem_file);
-		problem_t problem = parse_problem(problem_json);
+		problem_t problem = problem_t::parse_from_json(problem_json);
 
 		// Create algorithms instance
 		// Note: Assuming double_precision is always true; adjust as needed

@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.10)
 
 project(mechanize CXX)
 
-add_executable(mechanize src/main.cpp)
+file(GLOB_RECURSE src_files "src/*")
+add_executable(mechanize ${src_files})
 
 find_package(argparse CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
