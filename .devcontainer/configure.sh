@@ -7,5 +7,5 @@ sudo ./llvm.sh 20 all
 rm llvm.sh
 
 # Bootstrapping vcpkg
-# cd vcpkg
-# ./bootstrap-vcpkg.sh
+cd vcpkg
+./bootstrap-vcpkg.sh
