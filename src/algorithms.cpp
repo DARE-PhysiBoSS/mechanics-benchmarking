@@ -6,11 +6,17 @@
 
 #include "mechanics_solver.h"
 #include "problem.h"
+#include "solvers/base_solver.h"
+#include "solvers/reference_solver.h"
 
 template <typename real_t>
 std::map<std::string, std::function<std::unique_ptr<mechanics_solver>()>> get_solvers_map()
 {
 	std::map<std::string, std::function<std::unique_ptr<mechanics_solver>()>> solvers;
+
+	solvers["ref"] = []() { return std::make_unique<reference_solver<real_t>>(); };
+	solvers["base"] = []() { return std::make_unique<base_solver<real_t>>(false); };
+	solvers["base_symmetry"] = []() { return std::make_unique<base_solver<real_t>>(true); };
 
 	return solvers;
 }
@@ -136,7 +142,7 @@ void algorithms::benchmark(const std::string& alg, const problem_t& problem, con
 		std::cout << "algorithm,precision,dims,iterations,n,";
 		append_params(std::cout, params, true);
 
-		std::cout << "init_time,time,std_dev" << std::endl;
+		std::cout << "time,std_dev" << std::endl;
 	}
 
 	// warmup
@@ -157,7 +163,6 @@ void algorithms::benchmark(const std::string& alg, const problem_t& problem, con
 	// measure
 	{
 		auto outer_iterations = params.contains("outer_iterations") ? (std::size_t)params["outer_iterations"] : 1;
-
 
 		auto compute_mean_and_std = [](const std::vector<std::size_t>& times) {
 			double mean = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
@@ -190,7 +195,7 @@ void algorithms::benchmark(const std::string& alg, const problem_t& problem, con
 
 		auto [mean, std_dev] = compute_mean_and_std(times);
 
-		std::cout << std::setprecision(10);
+		std::cout << std::setprecision(4);
 
 		for (auto t : times)
 		{

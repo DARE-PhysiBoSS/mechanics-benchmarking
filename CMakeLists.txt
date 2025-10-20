@@ -8,5 +8,8 @@ add_executable(mechanize ${src_files})
 find_package(argparse CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
-target_link_libraries(mechanize PRIVATE argparse::argparse
-                                        nlohmann_json::nlohmann_json)
+find_package(OpenMP REQUIRED)
+
+target_link_libraries(
+  mechanize PRIVATE argparse::argparse nlohmann_json::nlohmann_json
+                    OpenMP::OpenMP_CXX)

@@ -74,7 +74,7 @@ agent_distributor<real_t>::agent_distributor(const problem_t& problem)
 	repulsion_coeff_ = std::make_unique<real_t[]>(agents_count_);
 	adhesion_coeff_ = std::make_unique<real_t[]>(agents_count_);
 	max_adhesion_distance_ = std::make_unique<real_t[]>(agents_count_);
-	adhesion_affinity_ = std::make_unique<real_t[]>(agents_count_);
+	adhesion_affinity_ = std::make_unique<real_t[]>(agents_count_ * agents_count_);
 	agent_types_ = std::make_unique<int32_t[]>(agents_count_);
 
 	// Distribute agents uniformly across the domain
@@ -93,7 +93,7 @@ agent_distributor<real_t>::agent_distributor(const problem_t& problem, distribut
 	repulsion_coeff_ = std::make_unique<real_t[]>(agents_count_);
 	adhesion_coeff_ = std::make_unique<real_t[]>(agents_count_);
 	max_adhesion_distance_ = std::make_unique<real_t[]>(agents_count_);
-	adhesion_affinity_ = std::make_unique<real_t[]>(agents_count_);
+	adhesion_affinity_ = std::make_unique<real_t[]>(agents_count_ * agents_count_);
 	agent_types_ = std::make_unique<int32_t[]>(agents_count_);
 
 	// Choose distribution method
@@ -153,7 +153,12 @@ void agent_distributor<real_t>::initialize_default_properties(const problem_t& p
 		repulsion_coeff_[i] = static_cast<real_t>(1.0);
 		adhesion_coeff_[i] = static_cast<real_t>(0.5);
 		max_adhesion_distance_[i] = static_cast<real_t>(2.0);
-		adhesion_affinity_[i] = static_cast<real_t>(1.0);
+
+		// Initialize adhesion affinity matrix to 1.0
+		for (std::size_t j = 0; j < agents_count_; ++j)
+		{
+			adhesion_affinity_[i * agents_count_ + j] = static_cast<real_t>(1.0);
+		}
 
 		// Distribute agent types uniformly
 		agent_types_[i] = static_cast<int32_t>(i % problem.agent_types_count);

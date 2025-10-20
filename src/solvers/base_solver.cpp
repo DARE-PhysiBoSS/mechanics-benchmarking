@@ -1,9 +1,9 @@
-#include "reference_solver.h"
+#include "base_solver.h"
 
 #include "../agent_distributor.h"
 #include "solver_helper.h"
 
-template <std::size_t dims, typename index_t, typename real_t>
+template <std::size_t dims, bool use_symmetry, typename index_t, typename real_t>
 void solve_pair(index_t lhs, index_t rhs, index_t agent_types_count, real_t* __restrict__ velocity,
 				const real_t* __restrict__ position, const real_t* __restrict__ radius,
 				const real_t* __restrict__ repulsion_coeff, const real_t* __restrict__ adhesion_coeff,
@@ -50,35 +50,70 @@ void solve_pair(index_t lhs, index_t rhs, index_t agent_types_count, real_t* __r
 
 	real_t force = (repulsion - adhesion) / distance;
 
-	position_helper<dims>::update_velocity(velocity + lhs * dims, position_difference, force);
+	if constexpr (use_symmetry)
+	{
+		position_helper<dims>::update_velocities_atomic(velocity + lhs * dims, velocity + rhs * dims,
+														position_difference, force);
+	}
+	else
+	{
+		position_helper<dims>::update_velocity(velocity + lhs * dims, position_difference, force);
+	}
 }
 
 template <typename real_t>
-void reference_solver<real_t>::solve()
+void base_solver<real_t>::solve()
 {
-	for (index_t i = 0; i < agents_count_; i++)
+	if (!use_symmetry_)
 	{
-		for (index_t j = 0; j < agents_count_; j++)
+#pragma omp parallel for schedule(static)
+		for (index_t i = 0; i < agents_count_; i++)
 		{
-			if (i == j)
-				continue;
+			for (index_t j = 0; j < agents_count_; j++)
+			{
+				if (i == j)
+					continue;
 
-			if (dims_ == 1)
-				solve_pair<1>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
-							  repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
-							  adhesion_affinity_.get(), agent_types_.get());
-			else if (dims_ == 2)
-				solve_pair<2>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
-							  repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
-							  adhesion_affinity_.get(), agent_types_.get());
-			else if (dims_ == 3)
-				solve_pair<3>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
-							  repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
-							  adhesion_affinity_.get(), agent_types_.get());
+				if (dims_ == 1)
+					solve_pair<1, false>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+										 repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
+										 adhesion_affinity_.get(), agent_types_.get());
+				else if (dims_ == 2)
+					solve_pair<2, false>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+										 repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
+										 adhesion_affinity_.get(), agent_types_.get());
+				else if (dims_ == 3)
+					solve_pair<3, false>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+										 repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
+										 adhesion_affinity_.get(), agent_types_.get());
+			}
+		}
+	}
+	else
+	{
+#pragma omp parallel for
+		for (index_t i = 0; i < agents_count_; i++)
+		{
+			for (index_t j = i + 1; j < agents_count_; j++)
+			{
+				if (dims_ == 1)
+					solve_pair<1, true>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+										repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
+										adhesion_affinity_.get(), agent_types_.get());
+				else if (dims_ == 2)
+					solve_pair<2, true>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+										repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
+										adhesion_affinity_.get(), agent_types_.get());
+				else if (dims_ == 3)
+					solve_pair<3, true>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+										repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
+										adhesion_affinity_.get(), agent_types_.get());
+			}
 		}
 	}
 
 	// Update positions based on velocities
+#pragma omp parallel for schedule(static)
 	for (index_t i = 0; i < agents_count_; i++)
 	{
 		for (index_t d = 0; d < dims_; d++)
@@ -89,7 +124,7 @@ void reference_solver<real_t>::solve()
 }
 
 template <typename real_t>
-void reference_solver<real_t>::initialize(const nlohmann::json&, const problem_t& problem)
+void base_solver<real_t>::initialize(const nlohmann::json&, const problem_t& problem)
 {
 	dims_ = static_cast<index_t>(problem.dims);
 	agents_count_ = static_cast<index_t>(problem.agents_count);
@@ -110,7 +145,7 @@ void reference_solver<real_t>::initialize(const nlohmann::json&, const problem_t
 }
 
 template <typename real_t>
-std::array<double, 3> reference_solver<real_t>::access_agent(std::size_t agent_id)
+std::array<double, 3> base_solver<real_t>::access_agent(std::size_t agent_id)
 {
 	// Access agent data
 	std::array<double, 3> agent_data = { 0.0, 0.0, 0.0 };
@@ -122,7 +157,7 @@ std::array<double, 3> reference_solver<real_t>::access_agent(std::size_t agent_i
 }
 
 template <typename real_t>
-void reference_solver<real_t>::save(std::ostream& os) const
+void base_solver<real_t>::save(std::ostream& os) const
 {
 	// Save agent data to output stream
 	for (std::size_t i = 0; i < static_cast<std::size_t>(agents_count_); i++)
@@ -136,5 +171,9 @@ void reference_solver<real_t>::save(std::ostream& os) const
 	}
 }
 
-template class reference_solver<float>;
-template class reference_solver<double>;
+template <typename real_t>
+base_solver<real_t>::base_solver(bool use_symmetry) : use_symmetry_(use_symmetry)
+{}
+
+template class base_solver<float>;
+template class base_solver<double>;

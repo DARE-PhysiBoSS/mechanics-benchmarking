@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cmath>
 
 template <std::size_t dims>
@@ -25,11 +26,11 @@ struct position_helper<1>
 	}
 
 	template <typename real_t>
-	static constexpr void update_velocities(real_t* __restrict__ lhs, real_t* __restrict__ rhs,
-											const real_t* __restrict__ difference, const real_t force)
+	static constexpr void update_velocities_atomic(real_t* __restrict__ lhs, real_t* __restrict__ rhs,
+												   const real_t* __restrict__ difference, const real_t force)
 	{
-		lhs[0] += force * difference[0];
-		rhs[0] -= force * difference[0];
+		std::atomic_ref(lhs[0]).fetch_add(force * difference[0], std::memory_order_relaxed);
+		std::atomic_ref(rhs[0]).fetch_sub(force * difference[0], std::memory_order_relaxed);
 	}
 
 	template <typename real_t>
@@ -73,14 +74,14 @@ struct position_helper<2>
 	}
 
 	template <typename real_t>
-	static constexpr void update_velocities(real_t* __restrict__ lhs, real_t* __restrict__ rhs,
-											const real_t* __restrict__ difference, const real_t force)
+	static constexpr void update_velocities_atomic(real_t* __restrict__ lhs, real_t* __restrict__ rhs,
+												   const real_t* __restrict__ difference, const real_t force)
 	{
-		lhs[0] += force * difference[0];
-		lhs[1] += force * difference[1];
+		std::atomic_ref(lhs[0]).fetch_add(force * difference[0], std::memory_order_relaxed);
+		std::atomic_ref(lhs[1]).fetch_add(force * difference[1], std::memory_order_relaxed);
 
-		rhs[0] -= force * difference[0];
-		rhs[1] -= force * difference[1];
+		std::atomic_ref(rhs[0]).fetch_sub(force * difference[0], std::memory_order_relaxed);
+		std::atomic_ref(rhs[1]).fetch_sub(force * difference[1], std::memory_order_relaxed);
 	}
 
 	template <typename real_t>
@@ -129,16 +130,16 @@ struct position_helper<3>
 	}
 
 	template <typename real_t>
-	static constexpr void update_velocities(real_t* __restrict__ lhs, real_t* __restrict__ rhs,
-											const real_t* __restrict__ difference, const real_t force)
+	static constexpr void update_velocities_atomic(real_t* __restrict__ lhs, real_t* __restrict__ rhs,
+												   const real_t* __restrict__ difference, const real_t force)
 	{
-		lhs[0] += force * difference[0];
-		lhs[1] += force * difference[1];
-		lhs[2] += force * difference[2];
+		std::atomic_ref(lhs[0]).fetch_add(force * difference[0], std::memory_order_relaxed);
+		std::atomic_ref(lhs[1]).fetch_add(force * difference[1], std::memory_order_relaxed);
+		std::atomic_ref(lhs[2]).fetch_add(force * difference[2], std::memory_order_relaxed);
 
-		rhs[0] -= force * difference[0];
-		rhs[1] -= force * difference[1];
-		rhs[2] -= force * difference[2];
+		std::atomic_ref(rhs[0]).fetch_sub(force * difference[0], std::memory_order_relaxed);
+		std::atomic_ref(rhs[1]).fetch_sub(force * difference[1], std::memory_order_relaxed);
+		std::atomic_ref(rhs[2]).fetch_sub(force * difference[2], std::memory_order_relaxed);
 	}
 
 	template <typename real_t>

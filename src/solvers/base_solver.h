@@ -3,7 +3,7 @@
 #include "../mechanics_solver.h"
 
 template <typename real_t>
-class reference_solver : public mechanics_solver
+class base_solver : public mechanics_solver
 {
 	using index_t = int32_t;
 
@@ -20,7 +20,10 @@ class reference_solver : public mechanics_solver
 	index_t agents_count_;
 	index_t agent_types_count_;
 
+	bool use_symmetry_;
+
 public:
+	explicit base_solver(bool use_symmetry);
 	void solve() override;
 	void initialize(const nlohmann::json& params, const problem_t& problem) override;
 	std::array<double, 3> access_agent(std::size_t agent_id) override;
