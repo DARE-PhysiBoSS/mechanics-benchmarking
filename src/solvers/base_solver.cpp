@@ -6,11 +6,11 @@
 #include "solver_helper.h"
 
 template <std::size_t dims, bool use_symmetry, bool try_skip_repulsion, typename index_t, typename real_t>
-void solve_pair(index_t lhs, index_t rhs, index_t agent_types_count, real_t* __restrict__ velocity,
-				const real_t* __restrict__ position, const real_t* __restrict__ radius,
-				const real_t* __restrict__ repulsion_coeff, const real_t* __restrict__ adhesion_coeff,
-				const real_t* __restrict__ relative_maximum_adhesion_distance,
-				const real_t* __restrict__ adhesion_affinity, const index_t* __restrict__ agent_type)
+static constexpr void solve_pair(index_t lhs, index_t rhs, index_t agent_types_count, real_t* __restrict__ velocity,
+								 const real_t* __restrict__ position, const real_t* __restrict__ radius,
+								 const real_t* __restrict__ repulsion_coeff, const real_t* __restrict__ adhesion_coeff,
+								 const real_t* __restrict__ relative_maximum_adhesion_distance,
+								 const real_t* __restrict__ adhesion_affinity, const index_t* __restrict__ agent_type)
 {
 	real_t position_difference[dims];
 
