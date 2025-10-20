@@ -2,11 +2,11 @@
     "timestep": 0.005,
     "dims": 3,
     "iterations": 1000,
-    "agents_count": 1000,
+    "agents_count": 20000,
     "agent_types_count": 4,
     "domain_size": [
-        80.0,
-        80.0,
-        80.0
+        2000.0,
+        2000.0,
+        2000.0
     ]
 }
