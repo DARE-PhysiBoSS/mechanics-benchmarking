@@ -91,6 +91,16 @@ static constexpr void solve_pair_scalar(index_t lhs, index_t rhs, index_t agent_
 		velocity_z[lhs] += force * position_difference_z;
 }
 
+template <typename tag_t, typename simd_t>
+void slide_concat(simd_t& l, simd_t& r)
+{
+	auto lanes = hn::Lanes(tag_t());
+	l = hn::Slide1Down(tag_t(), l);
+	auto first = hn::GetLane(r);
+	l = hn::InsertLane(l, lanes - 1, first);
+	r = hn::Slide1Down(tag_t(), r);
+}
+
 template <std::size_t dims, typename index_t, typename real_t>
 static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agent_types_count,
 								 real_t* __restrict__ velocity_x, real_t* __restrict__ velocity_y,
@@ -125,29 +135,29 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 		return;
 	}
 
-	// Handle scalar triangle begin
-	for (index_t i = 1; i < lanes; i++)
-	{
-		for (index_t j = 0; j < i; j++)
-		{
-			// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
-			solve_pair_scalar<dims>(lhs + i, j, agent_types_count, velocity_x, velocity_y, velocity_z, position_x,
-									position_y, position_z, radius, repulsion_coeff, adhesion_coeff,
-									relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
-		}
-	}
+	// // Handle scalar triangle begin
+	// for (index_t i = 1; i < lanes; i++)
+	// {
+	// 	for (index_t j = 0; j < i; j++)
+	// 	{
+	// 		// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
+	// 		solve_pair_scalar<dims>(lhs + i, j, agent_types_count, velocity_x, velocity_y, velocity_z, position_x,
+	// 								position_y, position_z, radius, repulsion_coeff, adhesion_coeff,
+	// 								relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
+	// 	}
+	// }
 
-	// Handle scalar triangle end
-	for (index_t i = 0; i < lanes - 1; i++)
-	{
-		for (index_t j = agents_count - lanes + i + 1; j < agents_count; j++)
-		{
-			// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
-			solve_pair_scalar<dims>(lhs + i, j, agent_types_count, velocity_x, velocity_y, velocity_z, position_x,
-									position_y, position_z, radius, repulsion_coeff, adhesion_coeff,
-									relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
-		}
-	}
+	// // Handle scalar triangle end
+	// for (index_t i = 0; i < lanes - 1; i++)
+	// {
+	// 	for (index_t j = agents_count - lanes + i + 1; j < agents_count; j++)
+	// 	{
+	// 		// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
+	// 		solve_pair_scalar<dims>(lhs + i, j, agent_types_count, velocity_x, velocity_y, velocity_z, position_x,
+	// 								position_y, position_z, radius, repulsion_coeff, adhesion_coeff,
+	// 								relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
+	// 	}
+	// }
 
 	const simd_t lhs_radius = hn::LoadU(tag_t(), radius + lhs);
 	const simd_t lhs_repulsion_coeff = hn::LoadU(tag_t(), repulsion_coeff + lhs);
@@ -172,36 +182,85 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 	if constexpr (dims > 2)
 		lhs_velocity_z = hn::LoadU(tag_t(), velocity_z + lhs);
 
-	for (index_t rhs = 0; rhs < agents_count - lanes + 1; rhs++)
+	simd_t rhs_radius_1 = hn::LoadU(tag_t(), radius);
+	simd_t rhs_repulsion_coeff_1 = hn::LoadU(tag_t(), repulsion_coeff);
+	simd_t rhs_adhesion_coeff_1 = hn::LoadU(tag_t(), adhesion_coeff);
+	simd_t rhs_relative_maximum_adhesion_distance_1 = hn::LoadU(tag_t(), relative_maximum_adhesion_distance);
+	index_simd_t rhs_agent_type_1 = hn::LoadU(index_tag_t(), agent_type);
+	index_simd_t rhs_iota_1 = hn::Iota(index_tag_t(), 0);
+
+	simd_t rhs_position_x_1 = hn::LoadU(tag_t(), position_x);
+	simd_t rhs_position_y_1;
+	simd_t rhs_position_z_1;
+
+	if constexpr (dims > 1)
+		rhs_position_y_1 = hn::LoadU(tag_t(), position_y);
+	if constexpr (dims > 2)
+		rhs_position_z_1 = hn::LoadU(tag_t(), position_z);
+
+	for (index_t rhs = 0; rhs < agents_count;)
 	{
-		// std::cout << "Solving vector: ([" << lhs << "," << lhs + lanes << "], [" << rhs << ","
-		// 		  << rhs + lanes << "])" << std::endl;
+		simd_t rhs_radius_2;
+		simd_t rhs_repulsion_coeff_2;
+		simd_t rhs_adhesion_coeff_2;
+		simd_t rhs_relative_maximum_adhesion_distance_2;
+		index_simd_t rhs_agent_type_2;
+		index_simd_t rhs_iota_2;
 
-		simd_t rhs_radius = hn::LoadU(tag_t(), radius + rhs);
-		simd_t rhs_repulsion_coeff = hn::LoadU(tag_t(), repulsion_coeff + rhs);
-		simd_t rhs_adhesion_coeff = hn::LoadU(tag_t(), adhesion_coeff + rhs);
-		simd_t rhs_relative_maximum_adhesion_distance = hn::LoadU(tag_t(), relative_maximum_adhesion_distance + rhs);
-		index_simd_t rhs_agent_type = hn::LoadU(index_tag_t(), agent_type + rhs);
+		simd_t rhs_position_x_2;
+		simd_t rhs_position_y_2;
+		simd_t rhs_position_z_2;
 
-		simd_t rhs_position_x = hn::LoadU(tag_t(), position_x + rhs);
-		simd_t rhs_position_y;
-		simd_t rhs_position_z;
-
-		if constexpr (dims > 1)
-			rhs_position_y = hn::LoadU(tag_t(), position_y + rhs);
-		if constexpr (dims > 2)
-			rhs_position_z = hn::LoadU(tag_t(), position_z + rhs);
+		index_t remaining_shifts;
 
 		{
+			hn::MFromD<tag_t> mask;
+			hn::MFromD<index_tag_t> index_mask;
+			index_t rhs2;
+			if (rhs + lanes < agents_count)
+			{
+				rhs2 = rhs + lanes;
+				remaining_shifts = std::min(agents_count - (rhs + lanes), lanes);
+				mask = hn::FirstN(tag_t(), remaining_shifts);
+				index_mask = hn::FirstN(index_tag_t(), remaining_shifts);
+			}
+			else
+			{
+				rhs2 = 0;
+				remaining_shifts = lanes;
+				mask = hn::FirstN(tag_t(), lanes);
+				index_mask = hn::FirstN(index_tag_t(), lanes);
+			}
+
+			rhs_radius_2 = hn::MaskedLoad(mask, tag_t(), radius + rhs2);
+			rhs_repulsion_coeff_2 = hn::MaskedLoad(mask, tag_t(), repulsion_coeff + rhs2);
+			rhs_adhesion_coeff_2 = hn::MaskedLoad(mask, tag_t(), adhesion_coeff + rhs2);
+			rhs_relative_maximum_adhesion_distance_2 =
+				hn::MaskedLoad(mask, tag_t(), relative_maximum_adhesion_distance + rhs2);
+			rhs_agent_type_2 = hn::MaskedLoad(index_mask, index_tag_t(), agent_type + rhs2);
+			rhs_iota_2 = hn::Iota(index_tag_t(), rhs2);
+
+			rhs_position_x_2 = hn::MaskedLoad(mask, tag_t(), position_x + rhs2);
+			if constexpr (dims > 1)
+				rhs_position_y_2 = hn::MaskedLoad(mask, tag_t(), position_y + rhs2);
+			if constexpr (dims > 2)
+				rhs_position_z_2 = hn::MaskedLoad(mask, tag_t(), position_z + rhs2);
+		}
+
+		for (index_t lane_idx = 0; lane_idx < remaining_shifts; lane_idx++)
+		{
+			// std::cout << "Solving vector: ([" << lhs << "," << lhs + lanes << "], [" << (rhs + lane_idx) %
+			// agents_count
+			// 		  << "," << (rhs + lane_idx + lanes) % agents_count << "])" << std::endl;
 			simd_t position_difference_x;
 			simd_t position_difference_y;
 			simd_t position_difference_z;
 
-			position_difference_x = lhs_position_x - rhs_position_x;
+			position_difference_x = lhs_position_x - rhs_position_x_1;
 			if constexpr (dims > 1)
-				position_difference_y = lhs_position_y - rhs_position_y;
+				position_difference_y = lhs_position_y - rhs_position_y_1;
 			if constexpr (dims > 2)
-				position_difference_z = lhs_position_z - rhs_position_z;
+				position_difference_z = lhs_position_z - rhs_position_z_1;
 
 			simd_t distance;
 			if constexpr (dims == 1)
@@ -227,7 +286,7 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 			// compute repulsion
 			simd_t repulsion;
 			{
-				const simd_t repulsive_distance = lhs_radius + rhs_radius;
+				const simd_t repulsive_distance = lhs_radius + rhs_radius_1;
 
 				repulsion = hn::Set(d, 1) - distance / repulsive_distance;
 
@@ -235,29 +294,30 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 
 				repulsion *= repulsion;
 
-				repulsion *= hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff);
+				repulsion *= hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff_1);
 			}
 
 			// compute adhesion
 			simd_t adhesion;
 			{
 				simd_t tmp = lhs_relative_maximum_adhesion_distance * lhs_radius;
-				const simd_t adhesion_distance = hn::MulAdd(rhs_relative_maximum_adhesion_distance, rhs_radius, tmp);
+				const simd_t adhesion_distance =
+					hn::MulAdd(rhs_relative_maximum_adhesion_distance_1, rhs_radius_1, tmp);
 
 				adhesion = hn::Set(d, 1) - distance / adhesion_distance;
 
 				adhesion *= adhesion;
 
 				index_simd_t lhs_index =
-					hn::MulAdd(lhs_agent_type, hn::Set(index_tag_t(), agent_types_count), hn::Iota(index_tag_t(), rhs));
-				index_simd_t rhs_index =
-					hn::MulAdd(rhs_agent_type, hn::Set(index_tag_t(), agent_types_count), hn::Iota(index_tag_t(), lhs));
+					hn::MulAdd(lhs_agent_type, hn::Set(index_tag_t(), agent_types_count), rhs_iota_1);
+				index_simd_t rhs_index = hn::MulAdd(rhs_agent_type_1, hn::Set(index_tag_t(), agent_types_count),
+													hn::Iota(index_tag_t(), lhs));
 
 				simd_t lhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, lhs_index);
 				simd_t rhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, rhs_index);
 
 				adhesion *=
-					hn::Sqrt(lhs_adhesion_coeff * rhs_adhesion_coeff * lhs_adhesion_affinity * rhs_adhesion_affinity);
+					hn::Sqrt(lhs_adhesion_coeff * rhs_adhesion_coeff_1 * lhs_adhesion_affinity * rhs_adhesion_affinity);
 			}
 
 			simd_t force = (repulsion - adhesion) / distance;
@@ -267,7 +327,21 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 				lhs_velocity_y = hn::MulAdd(force, position_difference_y, lhs_velocity_y);
 			if constexpr (dims > 2)
 				lhs_velocity_z = hn::MulAdd(force, position_difference_z, lhs_velocity_z);
+
+			slide_concat<tag_t>(rhs_radius_1, rhs_radius_2);
+			slide_concat<tag_t>(rhs_repulsion_coeff_1, rhs_repulsion_coeff_2);
+			slide_concat<tag_t>(rhs_adhesion_coeff_1, rhs_adhesion_coeff_2);
+			slide_concat<tag_t>(rhs_relative_maximum_adhesion_distance_1, rhs_relative_maximum_adhesion_distance_2);
+			slide_concat<index_tag_t>(rhs_agent_type_1, rhs_agent_type_2);
+			slide_concat<index_tag_t>(rhs_iota_1, rhs_iota_2);
+			slide_concat<tag_t>(rhs_position_x_1, rhs_position_x_2);
+			if constexpr (dims > 1)
+				slide_concat<tag_t>(rhs_position_y_1, rhs_position_y_2);
+			if constexpr (dims > 2)
+				slide_concat<tag_t>(rhs_position_z_1, rhs_position_z_2);
 		}
+
+		rhs += remaining_shifts;
 	}
 
 	hn::StoreU(lhs_velocity_x, tag_t(), velocity_x + lhs);
@@ -283,7 +357,7 @@ void transposed_solver<real_t>::solve()
 	using tag_t = hn::ScalableTag<real_t>;
 	HWY_LANES_CONSTEXPR int block_size = hn::Lanes(tag_t());
 
-#pragma omp parallel for schedule(static)
+	// #pragma omp parallel for schedule(static)
 	for (index_t i = 0; i < agents_count_; i += block_size)
 	{
 		if (dims_ == 1)
