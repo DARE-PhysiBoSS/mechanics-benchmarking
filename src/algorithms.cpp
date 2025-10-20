@@ -8,6 +8,7 @@
 #include "problem.h"
 #include "solvers/base_solver.h"
 #include "solvers/reference_solver.h"
+#include "solvers/transposed_solver.h"
 
 template <typename real_t>
 std::map<std::string, std::function<std::unique_ptr<mechanics_solver>()>> get_solvers_map()
@@ -16,6 +17,7 @@ std::map<std::string, std::function<std::unique_ptr<mechanics_solver>()>> get_so
 
 	solvers["ref"] = []() { return std::make_unique<reference_solver<real_t>>(); };
 	solvers["base"] = []() { return std::make_unique<base_solver<real_t>>(); };
+	solvers["transposed"] = []() { return std::make_unique<transposed_solver<real_t>>(); };
 
 	return solvers;
 }
