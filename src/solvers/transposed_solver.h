@@ -1,11 +1,13 @@
 #pragma once
 
+#include <type_traits>
+
 #include "../mechanics_solver.h"
 
 template <typename real_t>
 class transposed_solver : public mechanics_solver
 {
-	using index_t = int32_t;
+	using index_t = std::conditional_t<std::is_same_v<real_t, float>, int32_t, int64_t>;
 
 	std::unique_ptr<real_t[]> positionsx_;
 	std::unique_ptr<real_t[]> positionsy_;
