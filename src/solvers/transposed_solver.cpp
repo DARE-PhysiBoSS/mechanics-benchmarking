@@ -106,7 +106,6 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 	using index_tag_t = hn::ScalableTag<index_t>;
 	using index_simd_t = hn::Vec<index_tag_t>;
 	HWY_LANES_CONSTEXPR index_t lanes = (index_t)hn::Lanes(tag_t());
-	tag_t d;
 
 	// Handle scalar remainder
 	if (lhs + lanes > agents_count)
@@ -222,16 +221,16 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 				distance = hn::Sqrt(tmp);
 			}
 
-			distance = hn::Max(distance, hn::Set(d, 0.00001));
+			distance = hn::Max(distance, hn::Set(tag_t(), 0.00001));
 
 			// compute repulsion
 			simd_t repulsion;
 			{
 				const simd_t repulsive_distance = lhs_radius + rhs_radius;
 
-				repulsion = hn::Set(d, 1) - distance / repulsive_distance;
+				repulsion = hn::Set(tag_t(), 1) - distance / repulsive_distance;
 
-				repulsion = hn::Max(repulsion, hn::Set(d, 0));
+				repulsion = hn::Max(repulsion, hn::Set(tag_t(), 0));
 
 				repulsion *= repulsion;
 
@@ -244,7 +243,7 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 				simd_t tmp = lhs_relative_maximum_adhesion_distance * lhs_radius;
 				const simd_t adhesion_distance = hn::MulAdd(rhs_relative_maximum_adhesion_distance, rhs_radius, tmp);
 
-				adhesion = hn::Set(d, 1) - distance / adhesion_distance;
+				adhesion = hn::Set(tag_t(), 1) - distance / adhesion_distance;
 
 				adhesion *= adhesion;
 
