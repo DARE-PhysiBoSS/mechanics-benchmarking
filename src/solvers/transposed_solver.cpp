@@ -92,12 +92,11 @@ static constexpr void solve_pair_scalar(index_t lhs, index_t rhs, index_t agent_
 }
 
 template <typename tag_t, typename simd_t>
-void slide_concat(simd_t& l, simd_t& r)
+static constexpr void slide_concat(simd_t& l, simd_t& r)
 {
-	auto lanes = hn::Lanes(tag_t());
 	l = hn::Slide1Down(tag_t(), l);
 	auto first = hn::GetLane(r);
-	l = hn::InsertLane(l, lanes - 1, first);
+	l = hn::InsertLane(l, hn::Lanes(tag_t()) - 1, first);
 	r = hn::Slide1Down(tag_t(), r);
 }
 
@@ -134,30 +133,6 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 
 		return;
 	}
-
-	// // Handle scalar triangle begin
-	// for (index_t i = 1; i < lanes; i++)
-	// {
-	// 	for (index_t j = 0; j < i; j++)
-	// 	{
-	// 		// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
-	// 		solve_pair_scalar<dims>(lhs + i, j, agent_types_count, velocity_x, velocity_y, velocity_z, position_x,
-	// 								position_y, position_z, radius, repulsion_coeff, adhesion_coeff,
-	// 								relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
-	// 	}
-	// }
-
-	// // Handle scalar triangle end
-	// for (index_t i = 0; i < lanes - 1; i++)
-	// {
-	// 	for (index_t j = agents_count - lanes + i + 1; j < agents_count; j++)
-	// 	{
-	// 		// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
-	// 		solve_pair_scalar<dims>(lhs + i, j, agent_types_count, velocity_x, velocity_y, velocity_z, position_x,
-	// 								position_y, position_z, radius, repulsion_coeff, adhesion_coeff,
-	// 								relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
-	// 	}
-	// }
 
 	const simd_t lhs_radius = hn::LoadU(tag_t(), radius + lhs);
 	const simd_t lhs_repulsion_coeff = hn::LoadU(tag_t(), repulsion_coeff + lhs);
@@ -357,7 +332,7 @@ void transposed_solver<real_t>::solve()
 	using tag_t = hn::ScalableTag<real_t>;
 	HWY_LANES_CONSTEXPR int block_size = hn::Lanes(tag_t());
 
-	// #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
 	for (index_t i = 0; i < agents_count_; i += block_size)
 	{
 		if (dims_ == 1)
