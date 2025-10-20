@@ -21,9 +21,9 @@ class base_solver : public mechanics_solver
 	index_t agent_types_count_;
 
 	bool use_symmetry_;
+	bool try_skip_repulsion_;
 
 public:
-	explicit base_solver(bool use_symmetry);
 	void solve() override;
 	void initialize(const nlohmann::json& params, const problem_t& problem) override;
 	std::array<double, 3> access_agent(std::size_t agent_id) override;

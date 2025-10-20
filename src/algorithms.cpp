@@ -15,8 +15,7 @@ std::map<std::string, std::function<std::unique_ptr<mechanics_solver>()>> get_so
 	std::map<std::string, std::function<std::unique_ptr<mechanics_solver>()>> solvers;
 
 	solvers["ref"] = []() { return std::make_unique<reference_solver<real_t>>(); };
-	solvers["base"] = []() { return std::make_unique<base_solver<real_t>>(false); };
-	solvers["base_symmetry"] = []() { return std::make_unique<base_solver<real_t>>(true); };
+	solvers["base"] = []() { return std::make_unique<base_solver<real_t>>(); };
 
 	return solvers;
 }
@@ -195,7 +194,7 @@ void algorithms::benchmark(const std::string& alg, const problem_t& problem, con
 
 		auto [mean, std_dev] = compute_mean_and_std(times);
 
-		std::cout << std::setprecision(4);
+		std::cout << std::fixed << std::setprecision(2);
 
 		for (auto t : times)
 		{
