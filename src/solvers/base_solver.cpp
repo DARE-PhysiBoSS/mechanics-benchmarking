@@ -25,11 +25,9 @@ void solve_pair(index_t lhs, index_t rhs, index_t agent_types_count, real_t* __r
 		repulsion = 0;
 		const real_t repulsive_distance = radius[lhs] + radius[rhs];
 
-		if (distance >= repulsive_distance)
+		if (distance < repulsive_distance)
 		{
 			repulsion = 1 - distance / repulsive_distance;
-
-			repulsion = repulsion < 0 ? 0 : repulsion;
 
 			repulsion *= repulsion;
 
