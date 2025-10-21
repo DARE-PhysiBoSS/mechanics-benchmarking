@@ -23,6 +23,7 @@ class base_solver : public mechanics_solver
 
 	bool use_symmetry_;
 	bool try_skip_repulsion_;
+	bool try_skip_adhesion_;
 
 public:
 	void solve() override;

@@ -2,5 +2,6 @@
     "warmup_time": 2.0,
     "outer_iterations": 10,
     "use_symmetry": false,
-    "try_skip_repulsion": true
+    "try_skip_repulsion": true,
+    "try_skip_adhesion": true
 }

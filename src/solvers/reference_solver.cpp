@@ -38,6 +38,8 @@ void solve_pair(index_t lhs, index_t rhs, index_t agent_types_count, real_t* __r
 
 		adhesion = 1 - distance / adhesion_distance;
 
+		adhesion = adhesion < 0 ? 0 : adhesion;
+
 		adhesion *= adhesion;
 
 		const index_t lhs_type = agent_type[lhs];

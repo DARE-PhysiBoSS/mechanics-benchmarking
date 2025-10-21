@@ -5,8 +5,9 @@
 #include "../agent_distributor.h"
 #include "solver_helper.h"
 
-template <std::size_t dims, bool use_symmetry, bool try_skip_repulsion, typename index_t, typename real_t>
-static constexpr void solve_pair(index_t lhs, index_t rhs, index_t agent_types_count, real_t* __restrict__ velocity,
+template <std::size_t dims, bool use_symmetry, typename index_t, typename real_t>
+static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion, index_t lhs, index_t rhs,
+								 index_t agent_types_count, real_t* __restrict__ velocity,
 								 const real_t* __restrict__ position, const real_t* __restrict__ radius,
 								 const real_t* __restrict__ repulsion_coeff, const real_t* __restrict__ adhesion_coeff,
 								 const real_t* __restrict__ relative_maximum_adhesion_distance,
@@ -20,7 +21,7 @@ static constexpr void solve_pair(index_t lhs, index_t rhs, index_t agent_types_c
 
 	// compute repulsion
 	real_t repulsion;
-	if constexpr (try_skip_repulsion)
+	if (try_skip_repulsion)
 	{
 		repulsion = 0;
 		const real_t repulsive_distance = radius[lhs] + radius[rhs];
@@ -49,21 +50,39 @@ static constexpr void solve_pair(index_t lhs, index_t rhs, index_t agent_types_c
 
 	// compute adhesion
 	real_t adhesion;
+	if (try_skip_adhesion)
+	{
+		adhesion = 0;
+		const real_t adhesion_distance = relative_maximum_adhesion_distance[lhs] * radius[lhs]
+										 + relative_maximum_adhesion_distance[rhs] * radius[rhs];
+
+		if (distance < adhesion_distance)
+		{
+			adhesion = 1 - distance / adhesion_distance;
+
+			adhesion *= adhesion;
+
+			const index_t lhs_type = agent_type[lhs];
+			const index_t rhs_type = agent_type[rhs];
+
+			adhesion *= std::sqrt(adhesion_coeff[lhs] * adhesion_coeff[rhs]
+								  * adhesion_affinity[lhs * agent_types_count + rhs_type]
+								  * adhesion_affinity[rhs * agent_types_count + lhs_type]);
+		}
+	}
+	else
 	{
 		const real_t adhesion_distance = relative_maximum_adhesion_distance[lhs] * radius[lhs]
 										 + relative_maximum_adhesion_distance[rhs] * radius[rhs];
 
 		adhesion = 1 - distance / adhesion_distance;
 
+		adhesion = adhesion < 0 ? 0 : adhesion;
+
 		adhesion *= adhesion;
 
 		const index_t lhs_type = agent_type[lhs];
 		const index_t rhs_type = agent_type[rhs];
-
-		// {
-		// 	std::cout << lhs << " " << rhs << " " << adhesion_affinity[lhs * agent_types_count + rhs_type] << " "
-		// 			  << adhesion_affinity[rhs * agent_types_count + lhs_type] << std::endl;
-		// }
 
 		adhesion *=
 			std::sqrt(adhesion_coeff[lhs] * adhesion_coeff[rhs] * adhesion_affinity[lhs * agent_types_count + rhs_type]
@@ -86,115 +105,56 @@ static constexpr void solve_pair(index_t lhs, index_t rhs, index_t agent_types_c
 template <typename real_t>
 void base_solver<real_t>::solve()
 {
-	if (!try_skip_repulsion_)
+	if (!use_symmetry_)
 	{
-		if (!use_symmetry_)
-		{
 #pragma omp parallel for schedule(static)
-			for (index_t i = 0; i < agents_count_; i++)
-			{
-				for (index_t j = 0; j < agents_count_; j++)
-				{
-					if (i == j)
-						continue;
-
-					if (dims_ == 1)
-						solve_pair<1, false, false>(i, j, agent_types_count_, velocities_.get(), positions_.get(),
-													radius_.get(), repulsion_coeff_.get(), adhesion_coeff_.get(),
-													max_adhesion_distance_.get(), adhesion_affinity_.get(),
-													agent_types_.get());
-					else if (dims_ == 2)
-						solve_pair<2, false, false>(i, j, agent_types_count_, velocities_.get(), positions_.get(),
-													radius_.get(), repulsion_coeff_.get(), adhesion_coeff_.get(),
-													max_adhesion_distance_.get(), adhesion_affinity_.get(),
-													agent_types_.get());
-					else if (dims_ == 3)
-						solve_pair<3, false, false>(i, j, agent_types_count_, velocities_.get(), positions_.get(),
-													radius_.get(), repulsion_coeff_.get(), adhesion_coeff_.get(),
-													max_adhesion_distance_.get(), adhesion_affinity_.get(),
-													agent_types_.get());
-				}
-			}
-		}
-		else
+		for (index_t i = 0; i < agents_count_; i++)
 		{
-#pragma omp parallel for
-			for (index_t i = 0; i < agents_count_; i++)
+			for (index_t j = 0; j < agents_count_; j++)
 			{
-				for (index_t j = i + 1; j < agents_count_; j++)
-				{
-					if (dims_ == 1)
-						solve_pair<1, true, false>(i, j, agent_types_count_, velocities_.get(), positions_.get(),
-												   radius_.get(), repulsion_coeff_.get(), adhesion_coeff_.get(),
-												   max_adhesion_distance_.get(), adhesion_affinity_.get(),
-												   agent_types_.get());
-					else if (dims_ == 2)
-						solve_pair<2, true, false>(i, j, agent_types_count_, velocities_.get(), positions_.get(),
-												   radius_.get(), repulsion_coeff_.get(), adhesion_coeff_.get(),
-												   max_adhesion_distance_.get(), adhesion_affinity_.get(),
-												   agent_types_.get());
-					else if (dims_ == 3)
-						solve_pair<3, true, false>(i, j, agent_types_count_, velocities_.get(), positions_.get(),
-												   radius_.get(), repulsion_coeff_.get(), adhesion_coeff_.get(),
-												   max_adhesion_distance_.get(), adhesion_affinity_.get(),
-												   agent_types_.get());
-				}
+				if (i == j)
+					continue;
+
+				if (dims_ == 1)
+					solve_pair<1, false>(try_skip_repulsion_, try_skip_adhesion_, i, j, agent_types_count_,
+										 velocities_.get(), positions_.get(), radius_.get(), repulsion_coeff_.get(),
+										 adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
+										 agent_types_.get());
+				else if (dims_ == 2)
+					solve_pair<2, false>(try_skip_repulsion_, try_skip_adhesion_, i, j, agent_types_count_,
+										 velocities_.get(), positions_.get(), radius_.get(), repulsion_coeff_.get(),
+										 adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
+										 agent_types_.get());
+				else if (dims_ == 3)
+					solve_pair<3, false>(try_skip_repulsion_, try_skip_adhesion_, i, j, agent_types_count_,
+										 velocities_.get(), positions_.get(), radius_.get(), repulsion_coeff_.get(),
+										 adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
+										 agent_types_.get());
 			}
 		}
 	}
 	else
 	{
-		if (!use_symmetry_)
-		{
-#pragma omp parallel for schedule(static)
-			for (index_t i = 0; i < agents_count_; i++)
-			{
-				for (index_t j = 0; j < agents_count_; j++)
-				{
-					if (i == j)
-						continue;
-
-					if (dims_ == 1)
-						solve_pair<1, false, true>(i, j, agent_types_count_, velocities_.get(), positions_.get(),
-												   radius_.get(), repulsion_coeff_.get(), adhesion_coeff_.get(),
-												   max_adhesion_distance_.get(), adhesion_affinity_.get(),
-												   agent_types_.get());
-					else if (dims_ == 2)
-						solve_pair<2, false, true>(i, j, agent_types_count_, velocities_.get(), positions_.get(),
-												   radius_.get(), repulsion_coeff_.get(), adhesion_coeff_.get(),
-												   max_adhesion_distance_.get(), adhesion_affinity_.get(),
-												   agent_types_.get());
-					else if (dims_ == 3)
-						solve_pair<3, false, true>(i, j, agent_types_count_, velocities_.get(), positions_.get(),
-												   radius_.get(), repulsion_coeff_.get(), adhesion_coeff_.get(),
-												   max_adhesion_distance_.get(), adhesion_affinity_.get(),
-												   agent_types_.get());
-				}
-			}
-		}
-		else
-		{
 #pragma omp parallel for
-			for (index_t i = 0; i < agents_count_; i++)
+		for (index_t i = 0; i < agents_count_; i++)
+		{
+			for (index_t j = i + 1; j < agents_count_; j++)
 			{
-				for (index_t j = i + 1; j < agents_count_; j++)
-				{
-					if (dims_ == 1)
-						solve_pair<1, true, true>(i, j, agent_types_count_, velocities_.get(), positions_.get(),
-												  radius_.get(), repulsion_coeff_.get(), adhesion_coeff_.get(),
-												  max_adhesion_distance_.get(), adhesion_affinity_.get(),
-												  agent_types_.get());
-					else if (dims_ == 2)
-						solve_pair<2, true, true>(i, j, agent_types_count_, velocities_.get(), positions_.get(),
-												  radius_.get(), repulsion_coeff_.get(), adhesion_coeff_.get(),
-												  max_adhesion_distance_.get(), adhesion_affinity_.get(),
-												  agent_types_.get());
-					else if (dims_ == 3)
-						solve_pair<3, true, true>(i, j, agent_types_count_, velocities_.get(), positions_.get(),
-												  radius_.get(), repulsion_coeff_.get(), adhesion_coeff_.get(),
-												  max_adhesion_distance_.get(), adhesion_affinity_.get(),
-												  agent_types_.get());
-				}
+				if (dims_ == 1)
+					solve_pair<1, true>(try_skip_repulsion_, try_skip_adhesion_, i, j, agent_types_count_,
+										velocities_.get(), positions_.get(), radius_.get(), repulsion_coeff_.get(),
+										adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
+										agent_types_.get());
+				else if (dims_ == 2)
+					solve_pair<2, true>(try_skip_repulsion_, try_skip_adhesion_, i, j, agent_types_count_,
+										velocities_.get(), positions_.get(), radius_.get(), repulsion_coeff_.get(),
+										adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
+										agent_types_.get());
+				else if (dims_ == 3)
+					solve_pair<3, true>(try_skip_repulsion_, try_skip_adhesion_, i, j, agent_types_count_,
+										velocities_.get(), positions_.get(), radius_.get(), repulsion_coeff_.get(),
+										adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
+										agent_types_.get());
 			}
 		}
 	}
@@ -216,6 +176,7 @@ void base_solver<real_t>::initialize(const nlohmann::json& params, const problem
 {
 	use_symmetry_ = params.value("use_symmetry", false);
 	try_skip_repulsion_ = params.value("try_skip_repulsion", false);
+	try_skip_adhesion_ = params.value("try_skip_adhesion", false);
 
 	dims_ = static_cast<index_t>(problem.dims);
 	timestep_ = static_cast<real_t>(problem.timestep);

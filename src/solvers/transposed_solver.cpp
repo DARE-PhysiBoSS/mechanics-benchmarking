@@ -72,6 +72,8 @@ static constexpr void solve_pair_scalar(index_t lhs, index_t rhs, index_t agent_
 
 		adhesion = 1 - distance / adhesion_distance;
 
+		adhesion = adhesion < 0 ? 0 : adhesion;
+
 		adhesion *= adhesion;
 
 		const index_t lhs_type = agent_type[lhs];
@@ -250,6 +252,8 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 				const simd_t adhesion_distance = hn::MulAdd(rhs_relative_maximum_adhesion_distance, rhs_radius, tmp);
 
 				adhesion = hn::Set(tag_t(), 1) - distance / adhesion_distance;
+
+				adhesion = hn::Max(adhesion, hn::Set(tag_t(), 0));
 
 				adhesion *= adhesion;
 
