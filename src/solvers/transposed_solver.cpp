@@ -253,13 +253,12 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 
 				adhesion *= adhesion;
 
-				auto lhs_iota = hn::Iota(index_tag_t(), lhs);
-				auto rhs_iota = hn::Iota(index_tag_t(), rhs);
+				const index_simd_t lhs_indices = hn::Iota(index_tag_t(), lhs);
+				const index_simd_t rhs_indices = hn::Iota(index_tag_t(), rhs);
+				const index_simd_t types_count = hn::Set(index_tag_t(), agent_types_count);
 
-				index_simd_t lhs_index =
-					hn::MulAdd(lhs_iota, hn::Set(index_tag_t(), agent_types_count), rhs_agent_type);
-				index_simd_t rhs_index =
-					hn::MulAdd(rhs_iota, hn::Set(index_tag_t(), agent_types_count), lhs_agent_type);
+				index_simd_t lhs_index = hn::MulAdd(lhs_indices, types_count, rhs_agent_type);
+				index_simd_t rhs_index = hn::MulAdd(rhs_indices, types_count, lhs_agent_type);
 
 				simd_t lhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, lhs_index);
 				simd_t rhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, rhs_index);
