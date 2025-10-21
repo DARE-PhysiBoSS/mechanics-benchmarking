@@ -9,17 +9,14 @@
 
 namespace hn = hwy::HWY_NAMESPACE;
 
-
 template <std::size_t dims, typename index_t, typename real_t>
-static constexpr void solve_pair_scalar(index_t lhs, index_t rhs, index_t agent_types_count,
-										real_t* __restrict__ velocity_x, real_t* __restrict__ velocity_y,
-										real_t* __restrict__ velocity_z, const real_t* __restrict__ position_x,
-										const real_t* __restrict__ position_y, const real_t* __restrict__ position_z,
-										const real_t* __restrict__ radius, const real_t* __restrict__ repulsion_coeff,
-										const real_t* __restrict__ adhesion_coeff,
-										const real_t* __restrict__ relative_maximum_adhesion_distance,
-										const real_t* __restrict__ adhesion_affinity,
-										const index_t* __restrict__ agent_type)
+static constexpr void solve_pair_scalar(
+	bool try_skip_repulsion, bool try_skip_adhesion, index_t lhs, index_t rhs, index_t agent_types_count,
+	real_t* __restrict__ velocity_x, real_t* __restrict__ velocity_y, real_t* __restrict__ velocity_z,
+	const real_t* __restrict__ position_x, const real_t* __restrict__ position_y, const real_t* __restrict__ position_z,
+	const real_t* __restrict__ radius, const real_t* __restrict__ repulsion_coeff,
+	const real_t* __restrict__ adhesion_coeff, const real_t* __restrict__ relative_maximum_adhesion_distance,
+	const real_t* __restrict__ adhesion_affinity, const index_t* __restrict__ agent_type)
 {
 	real_t position_difference_x;
 	real_t position_difference_y;
@@ -52,6 +49,21 @@ static constexpr void solve_pair_scalar(index_t lhs, index_t rhs, index_t agent_
 
 	// compute repulsion
 	real_t repulsion;
+	if (try_skip_repulsion)
+	{
+		repulsion = 0;
+		const real_t repulsive_distance = radius[lhs] + radius[rhs];
+
+		if (distance < repulsive_distance)
+		{
+			repulsion = 1 - distance / repulsive_distance;
+
+			repulsion *= repulsion;
+
+			repulsion *= std::sqrt(repulsion_coeff[lhs] * repulsion_coeff[rhs]);
+		}
+	}
+	else
 	{
 		const real_t repulsive_distance = radius[lhs] + radius[rhs];
 
@@ -66,6 +78,27 @@ static constexpr void solve_pair_scalar(index_t lhs, index_t rhs, index_t agent_
 
 	// compute adhesion
 	real_t adhesion;
+	if (try_skip_adhesion)
+	{
+		adhesion = 0;
+		const real_t adhesion_distance = relative_maximum_adhesion_distance[lhs] * radius[lhs]
+										 + relative_maximum_adhesion_distance[rhs] * radius[rhs];
+
+		if (distance < adhesion_distance)
+		{
+			adhesion = 1 - distance / adhesion_distance;
+
+			adhesion *= adhesion;
+
+			const index_t lhs_type = agent_type[lhs];
+			const index_t rhs_type = agent_type[rhs];
+
+			adhesion *= std::sqrt(adhesion_coeff[lhs] * adhesion_coeff[rhs]
+								  * adhesion_affinity[lhs * agent_types_count + rhs_type]
+								  * adhesion_affinity[rhs * agent_types_count + lhs_type]);
+		}
+	}
+	else
 	{
 		const real_t adhesion_distance = relative_maximum_adhesion_distance[lhs] * radius[lhs]
 										 + relative_maximum_adhesion_distance[rhs] * radius[rhs];
@@ -94,12 +127,12 @@ static constexpr void solve_pair_scalar(index_t lhs, index_t rhs, index_t agent_
 }
 
 template <std::size_t dims, typename index_t, typename real_t>
-static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agent_types_count,
-								 real_t* __restrict__ velocity_x, real_t* __restrict__ velocity_y,
-								 real_t* __restrict__ velocity_z, const real_t* __restrict__ position_x,
-								 const real_t* __restrict__ position_y, const real_t* __restrict__ position_z,
-								 const real_t* __restrict__ radius, const real_t* __restrict__ repulsion_coeff,
-								 const real_t* __restrict__ adhesion_coeff,
+static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion, index_t lhs, index_t agents_count,
+								 index_t agent_types_count, real_t* __restrict__ velocity_x,
+								 real_t* __restrict__ velocity_y, real_t* __restrict__ velocity_z,
+								 const real_t* __restrict__ position_x, const real_t* __restrict__ position_y,
+								 const real_t* __restrict__ position_z, const real_t* __restrict__ radius,
+								 const real_t* __restrict__ repulsion_coeff, const real_t* __restrict__ adhesion_coeff,
 								 const real_t* __restrict__ relative_maximum_adhesion_distance,
 								 const real_t* __restrict__ adhesion_affinity, const index_t* __restrict__ agent_type)
 {
@@ -120,9 +153,10 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 					continue;
 
 				// std::cout << "Solving pair: (" << i << ", " << j << ")" << std::endl;
-				solve_pair_scalar<dims>(i, j, agent_types_count, velocity_x, velocity_y, velocity_z, position_x,
-										position_y, position_z, radius, repulsion_coeff, adhesion_coeff,
-										relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
+				solve_pair_scalar<dims>(try_skip_repulsion, try_skip_adhesion, i, j, agent_types_count, velocity_x,
+										velocity_y, velocity_z, position_x, position_y, position_z, radius,
+										repulsion_coeff, adhesion_coeff, relative_maximum_adhesion_distance,
+										adhesion_affinity, agent_type);
 			}
 		}
 
@@ -135,9 +169,9 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 		for (index_t j = 0; j < i; j++)
 		{
 			// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
-			solve_pair_scalar<dims>(lhs + i, j, agent_types_count, velocity_x, velocity_y, velocity_z, position_x,
-									position_y, position_z, radius, repulsion_coeff, adhesion_coeff,
-									relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
+			solve_pair_scalar<dims>(try_skip_repulsion, try_skip_adhesion, lhs + i, j, agent_types_count, velocity_x,
+									velocity_y, velocity_z, position_x, position_y, position_z, radius, repulsion_coeff,
+									adhesion_coeff, relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
 		}
 	}
 
@@ -147,9 +181,9 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 		for (index_t j = agents_count - lanes + i + 1; j < agents_count; j++)
 		{
 			// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
-			solve_pair_scalar<dims>(lhs + i, j, agent_types_count, velocity_x, velocity_y, velocity_z, position_x,
-									position_y, position_z, radius, repulsion_coeff, adhesion_coeff,
-									relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
+			solve_pair_scalar<dims>(try_skip_repulsion, try_skip_adhesion, lhs + i, j, agent_types_count, velocity_x,
+									velocity_y, velocity_z, position_x, position_y, position_z, radius, repulsion_coeff,
+									adhesion_coeff, relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
 		}
 	}
 
@@ -233,28 +267,63 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 
 			// compute repulsion
 			simd_t repulsion;
+			if (try_skip_repulsion)
+			{
+				repulsion = hn::Zero(tag_t());
+				const simd_t repulsive_distance = lhs_radius + rhs_radius;
+
+				if (!hn::AllTrue(tag_t(), hn::Gt(distance, repulsive_distance)))
+				{
+					repulsion = hn::Set(tag_t(), 1) - distance / repulsive_distance;
+					repulsion *= repulsion;
+					repulsion *= hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff);
+				}
+			}
+			else
 			{
 				const simd_t repulsive_distance = lhs_radius + rhs_radius;
 
 				repulsion = hn::Set(tag_t(), 1) - distance / repulsive_distance;
-
-				repulsion = hn::Max(repulsion, hn::Set(tag_t(), 0));
-
+				repulsion = hn::Max(repulsion, hn::Zero(tag_t()));
 				repulsion *= repulsion;
-
 				repulsion *= hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff);
 			}
 
 			// compute adhesion
 			simd_t adhesion;
+			if (try_skip_adhesion)
+			{
+				adhesion = hn::Zero(tag_t());
+				simd_t tmp = lhs_relative_maximum_adhesion_distance * lhs_radius;
+				const simd_t adhesion_distance = hn::MulAdd(rhs_relative_maximum_adhesion_distance, rhs_radius, tmp);
+
+				if (!hn::AllTrue(tag_t(), hn::Gt(distance, adhesion_distance)))
+				{
+					adhesion = hn::Set(tag_t(), 1) - distance / adhesion_distance;
+
+					adhesion *= adhesion;
+
+					const index_simd_t lhs_indices = hn::Iota(index_tag_t(), lhs);
+					const index_simd_t rhs_indices = hn::Iota(index_tag_t(), rhs);
+					const index_simd_t types_count = hn::Set(index_tag_t(), agent_types_count);
+
+					index_simd_t lhs_index = hn::MulAdd(lhs_indices, types_count, rhs_agent_type);
+					index_simd_t rhs_index = hn::MulAdd(rhs_indices, types_count, lhs_agent_type);
+
+					simd_t lhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, lhs_index);
+					simd_t rhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, rhs_index);
+
+					adhesion *= hn::Sqrt(lhs_adhesion_coeff * rhs_adhesion_coeff * lhs_adhesion_affinity
+										 * rhs_adhesion_affinity);
+				}
+			}
+			else
 			{
 				simd_t tmp = lhs_relative_maximum_adhesion_distance * lhs_radius;
 				const simd_t adhesion_distance = hn::MulAdd(rhs_relative_maximum_adhesion_distance, rhs_radius, tmp);
 
 				adhesion = hn::Set(tag_t(), 1) - distance / adhesion_distance;
-
-				adhesion = hn::Max(adhesion, hn::Set(tag_t(), 0));
-
+				adhesion = hn::Max(adhesion, hn::Zero(tag_t()));
 				adhesion *= adhesion;
 
 				const index_simd_t lhs_indices = hn::Iota(index_tag_t(), lhs);
@@ -298,20 +367,23 @@ void transposed_solver<real_t>::solve()
 	for (index_t i = 0; i < agents_count_; i += block_size)
 	{
 		if (dims_ == 1)
-			solve_pair<1>(i, agents_count_, agent_types_count_, velocitiesx_.get(), velocitiesy_.get(),
-						  velocitiesz_.get(), positionsx_.get(), positionsy_.get(), positionsz_.get(), radius_.get(),
-						  repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
-						  adhesion_affinity_.get(), agent_types_.get());
+			solve_pair<1>(try_skip_repulsion_, try_skip_adhesion_, i, agents_count_, agent_types_count_,
+						  velocitiesx_.get(), velocitiesy_.get(), velocitiesz_.get(), positionsx_.get(),
+						  positionsy_.get(), positionsz_.get(), radius_.get(), repulsion_coeff_.get(),
+						  adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
+						  agent_types_.get());
 		else if (dims_ == 2)
-			solve_pair<2>(i, agents_count_, agent_types_count_, velocitiesx_.get(), velocitiesy_.get(),
-						  velocitiesz_.get(), positionsx_.get(), positionsy_.get(), positionsz_.get(), radius_.get(),
-						  repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
-						  adhesion_affinity_.get(), agent_types_.get());
+			solve_pair<2>(try_skip_repulsion_, try_skip_adhesion_, i, agents_count_, agent_types_count_,
+						  velocitiesx_.get(), velocitiesy_.get(), velocitiesz_.get(), positionsx_.get(),
+						  positionsy_.get(), positionsz_.get(), radius_.get(), repulsion_coeff_.get(),
+						  adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
+						  agent_types_.get());
 		else if (dims_ == 3)
-			solve_pair<3>(i, agents_count_, agent_types_count_, velocitiesx_.get(), velocitiesy_.get(),
-						  velocitiesz_.get(), positionsx_.get(), positionsy_.get(), positionsz_.get(), radius_.get(),
-						  repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
-						  adhesion_affinity_.get(), agent_types_.get());
+			solve_pair<3>(try_skip_repulsion_, try_skip_adhesion_, i, agents_count_, agent_types_count_,
+						  velocitiesx_.get(), velocitiesy_.get(), velocitiesz_.get(), positionsx_.get(),
+						  positionsy_.get(), positionsz_.get(), radius_.get(), repulsion_coeff_.get(),
+						  adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
+						  agent_types_.get());
 	}
 
 // Update positions based on velocities
@@ -334,8 +406,11 @@ void transposed_solver<real_t>::solve()
 }
 
 template <typename real_t>
-void transposed_solver<real_t>::initialize(const nlohmann::json&, const problem_t& problem)
+void transposed_solver<real_t>::initialize(const nlohmann::json& params, const problem_t& problem)
 {
+	try_skip_repulsion_ = params.value("try_skip_repulsion", false);
+	try_skip_adhesion_ = params.value("try_skip_adhesion", false);
+
 	dims_ = static_cast<index_t>(problem.dims);
 	timestep_ = static_cast<real_t>(problem.timestep);
 	agents_count_ = static_cast<index_t>(problem.agents_count);
