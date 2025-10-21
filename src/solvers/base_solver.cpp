@@ -60,6 +60,11 @@ static constexpr void solve_pair(index_t lhs, index_t rhs, index_t agent_types_c
 		const index_t lhs_type = agent_type[lhs];
 		const index_t rhs_type = agent_type[rhs];
 
+		// {
+		// 	std::cout << lhs << " " << rhs << " " << adhesion_affinity[lhs * agent_types_count + rhs_type] << " "
+		// 			  << adhesion_affinity[rhs * agent_types_count + lhs_type] << std::endl;
+		// }
+
 		adhesion *=
 			std::sqrt(adhesion_coeff[lhs] * adhesion_coeff[rhs] * adhesion_affinity[lhs * agent_types_count + rhs_type]
 					  * adhesion_affinity[rhs * agent_types_count + lhs_type]);
@@ -194,13 +199,14 @@ void base_solver<real_t>::solve()
 		}
 	}
 
-	// Update positions based on velocities
+// Update positions based on velocities
 #pragma omp parallel for schedule(static)
 	for (index_t i = 0; i < agents_count_; i++)
 	{
 		for (index_t d = 0; d < dims_; d++)
 		{
-			positions_[i * dims_ + d] += velocities_[i * dims_ + d];
+			positions_[i * dims_ + d] += velocities_[i * dims_ + d] * timestep_;
+			velocities_[i * dims_ + d] = 0;
 		}
 	}
 }
@@ -212,6 +218,7 @@ void base_solver<real_t>::initialize(const nlohmann::json& params, const problem
 	try_skip_repulsion_ = params.value("try_skip_repulsion", false);
 
 	dims_ = static_cast<index_t>(problem.dims);
+	timestep_ = static_cast<real_t>(problem.timestep);
 	agents_count_ = static_cast<index_t>(problem.agents_count);
 	agent_types_count_ = static_cast<index_t>(problem.agent_types_count);
 

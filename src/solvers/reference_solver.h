@@ -17,6 +17,7 @@ class reference_solver : public mechanics_solver
 	std::unique_ptr<index_t[]> agent_types_;
 
 	index_t dims_;
+	real_t timestep_;
 	index_t agents_count_;
 	index_t agent_types_count_;
 

@@ -158,7 +158,7 @@ void agent_distributor<real_t>::initialize_default_properties(const problem_t& p
 		// Initialize adhesion affinity matrix to 1.0
 		for (std::size_t j = 0; j < agent_types_count_; ++j)
 		{
-			adhesion_affinity_[i * agent_types_count_ + j] = static_cast<real_t>(j);
+			adhesion_affinity_[i * agent_types_count_ + j] = 1. + .1 * static_cast<real_t>(j);
 		}
 
 		// Distribute agent types uniformly

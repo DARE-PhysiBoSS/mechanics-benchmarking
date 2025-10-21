@@ -114,6 +114,9 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 		{
 			for (index_t j = 0; j < agents_count; j++)
 			{
+				if (i == j)
+					continue;
+
 				// std::cout << "Solving pair: (" << i << ", " << j << ")" << std::endl;
 				solve_pair_scalar<dims>(i, j, agent_types_count, velocity_x, velocity_y, velocity_z, position_x,
 										position_y, position_z, radius, repulsion_coeff, adhesion_coeff,
@@ -173,16 +176,19 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 
 	for (index_t rhs = 0; rhs < agents_count - lanes + 1; rhs++)
 	{
-		// std::cout << "Solving vector: ([" << lhs << "," << lhs + lanes << "], [" << rhs << ","
-		// 		  << rhs + lanes << "])" << std::endl;
+		if (rhs == lhs)
+			continue;
+		// std::cout << "Solving vector: ([" << lhs << "," << lhs + lanes << "], [" << rhs << "," << rhs + lanes << "])"
+		// 		  << std::endl;
 
-		simd_t rhs_radius = hn::LoadU(tag_t(), radius + rhs);
-		simd_t rhs_repulsion_coeff = hn::LoadU(tag_t(), repulsion_coeff + rhs);
-		simd_t rhs_adhesion_coeff = hn::LoadU(tag_t(), adhesion_coeff + rhs);
-		simd_t rhs_relative_maximum_adhesion_distance = hn::LoadU(tag_t(), relative_maximum_adhesion_distance + rhs);
-		index_simd_t rhs_agent_type = hn::LoadU(index_tag_t(), agent_type + rhs);
+		const simd_t rhs_radius = hn::LoadU(tag_t(), radius + rhs);
+		const simd_t rhs_repulsion_coeff = hn::LoadU(tag_t(), repulsion_coeff + rhs);
+		const simd_t rhs_adhesion_coeff = hn::LoadU(tag_t(), adhesion_coeff + rhs);
+		const simd_t rhs_relative_maximum_adhesion_distance =
+			hn::LoadU(tag_t(), relative_maximum_adhesion_distance + rhs);
+		const index_simd_t rhs_agent_type = hn::LoadU(index_tag_t(), agent_type + rhs);
 
-		simd_t rhs_position_x = hn::LoadU(tag_t(), position_x + rhs);
+		const simd_t rhs_position_x = hn::LoadU(tag_t(), position_x + rhs);
 		simd_t rhs_position_y;
 		simd_t rhs_position_z;
 
@@ -247,10 +253,13 @@ static constexpr void solve_pair(index_t lhs, index_t agents_count, index_t agen
 
 				adhesion *= adhesion;
 
+				auto lhs_iota = hn::Iota(index_tag_t(), lhs);
+				auto rhs_iota = hn::Iota(index_tag_t(), rhs);
+
 				index_simd_t lhs_index =
-					hn::MulAdd(lhs_agent_type, hn::Set(index_tag_t(), agent_types_count), hn::Iota(index_tag_t(), rhs));
+					hn::MulAdd(lhs_iota, hn::Set(index_tag_t(), agent_types_count), rhs_agent_type);
 				index_simd_t rhs_index =
-					hn::MulAdd(rhs_agent_type, hn::Set(index_tag_t(), agent_types_count), hn::Iota(index_tag_t(), lhs));
+					hn::MulAdd(rhs_iota, hn::Set(index_tag_t(), agent_types_count), lhs_agent_type);
 
 				simd_t lhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, lhs_index);
 				simd_t rhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, rhs_index);
@@ -302,15 +311,22 @@ void transposed_solver<real_t>::solve()
 						  adhesion_affinity_.get(), agent_types_.get());
 	}
 
-	// Update positions based on velocities
+// Update positions based on velocities
 #pragma omp parallel for schedule(static)
 	for (index_t i = 0; i < agents_count_; i++)
 	{
-		positionsx_[i] += velocitiesx_[i];
+		positionsx_[i] += velocitiesx_[i] * timestep_;
+		velocitiesx_[i] = 0;
 		if (dims_ > 1)
-			positionsy_[i] += velocitiesy_[i];
+		{
+			positionsy_[i] += velocitiesy_[i] * timestep_;
+			velocitiesy_[i] = 0;
+		}
 		if (dims_ > 2)
-			positionsz_[i] += velocitiesz_[i];
+		{
+			positionsz_[i] += velocitiesz_[i] * timestep_;
+			velocitiesz_[i] = 0;
+		}
 	}
 }
 
@@ -318,6 +334,7 @@ template <typename real_t>
 void transposed_solver<real_t>::initialize(const nlohmann::json&, const problem_t& problem)
 {
 	dims_ = static_cast<index_t>(problem.dims);
+	timestep_ = static_cast<real_t>(problem.timestep);
 	agents_count_ = static_cast<index_t>(problem.agents_count);
 	agent_types_count_ = static_cast<index_t>(problem.agent_types_count);
 

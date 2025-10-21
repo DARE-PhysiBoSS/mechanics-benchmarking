@@ -83,7 +83,8 @@ void reference_solver<real_t>::solve()
 	{
 		for (index_t d = 0; d < dims_; d++)
 		{
-			positions_[i * dims_ + d] += velocities_[i * dims_ + d];
+			positions_[i * dims_ + d] += velocities_[i * dims_ + d] * timestep_;
+			velocities_[i * dims_ + d] = 0;
 		}
 	}
 }
@@ -92,6 +93,7 @@ template <typename real_t>
 void reference_solver<real_t>::initialize(const nlohmann::json&, const problem_t& problem)
 {
 	dims_ = static_cast<index_t>(problem.dims);
+	timestep_ = static_cast<real_t>(problem.timestep);
 	agents_count_ = static_cast<index_t>(problem.agents_count);
 	agent_types_count_ = static_cast<index_t>(problem.agent_types_count);
 
