@@ -29,7 +29,9 @@
 				"zip",
 				"unzip",
 				"tar",
-				"pkg-config"
+				"pkg-config",
+				"python3-dbg",
+				"libstdc++-14-dev"
 			]
 		}
 	},
