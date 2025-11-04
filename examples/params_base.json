@@ -3,5 +3,10 @@
     "outer_iterations": 10,
     "use_symmetry": false,
     "try_skip_repulsion": true,
-    "try_skip_adhesion": true
+    "try_skip_adhesion": true,
+    "voxel_size": [
+        10.0,
+        10.0,
+        10.0
+    ]
 }

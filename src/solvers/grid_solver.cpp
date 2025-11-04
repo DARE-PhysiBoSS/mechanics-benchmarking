@@ -118,7 +118,7 @@ void grid_solver<real_t>::solve()
 		for (std::size_t j = 0; j < agents_in_voxel.size(); ++j)
 		{
 			index_t agent_id = agents_in_voxel[j];
-			for (std::size_t k = 0; k < neighbours_indices.size(); ++k)
+			for (std::size_t k = 0; k < neighbours_indices.size(); ++k) // neighbors potntials
 			{
 				index_t neighbour_voxel = neighbours_indices[k];
 				std::vector<std::size_t> agents_in_neighbour = grid_.get_agents_in_voxel(neighbour_voxel);
@@ -140,6 +140,23 @@ void grid_solver<real_t>::solve()
 											 max_adhesion_distance_.get(), adhesion_affinity_.get(),
 											 agent_types_.get());
 				}
+			}
+			// self voxel
+			for (std::size_t k = 0; k < agents_in_voxel.size(); ++k)
+			{
+				index_t neighbour_id = agents_in_voxel[k];
+				if (agent_id == neighbour_id)
+					continue;
+				if (is_2d)
+					solve_pair<2, false>(try_skip_repulsion_, try_skip_adhesion_, agent_id, neighbour_id,
+										 agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+										 repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
+										 adhesion_affinity_.get(), agent_types_.get());
+				else
+					solve_pair<3, false>(try_skip_repulsion_, try_skip_adhesion_, agent_id, neighbour_id,
+										 agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+										 repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
+										 adhesion_affinity_.get(), agent_types_.get());
 			}
 		}
 	}

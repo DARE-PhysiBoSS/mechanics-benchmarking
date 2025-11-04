@@ -1,7 +1,7 @@
 {
     "timestep": 0.001,
     "dims": 2,
-    "iterations": 10,
+    "iterations": 1,
     "agents_count": 64,
     "agent_types_count": 2,
     "domain_size": [

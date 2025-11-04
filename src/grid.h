@@ -19,9 +19,9 @@ private:
 
 	std::vector<std::vector<std::size_t>> moore_neighbours;
 
-	real_t xside_, yside_, zside_;
+	real_t xside_, yside_, zside_; // in meters
 
-	std::size_t grid_size_x_;
+	std::size_t grid_size_x_; // in voxels
 	std::size_t grid_size_y_;
 	std::size_t grid_size_z_;
 
