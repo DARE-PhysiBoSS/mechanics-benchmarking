@@ -275,8 +275,8 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 				if (!hn::AllTrue(tag_t(), hn::Gt(distance, repulsive_distance)))
 				{
 					repulsion = hn::Sub(hn::Set(tag_t(), 1), hn::Div(distance, repulsive_distance));
-					repulsion *= repulsion;
-					repulsion *= hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff);
+					repulsion = hn::Mul(repulsion, repulsion);
+					repulsion = hn::Mul(repulsion, hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff));
 				}
 			}
 			else
@@ -285,8 +285,8 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 
 				repulsion = hn::Sub(hn::Set(tag_t(), 1), hn::Div(distance, repulsive_distance));
 				repulsion = hn::Max(repulsion, hn::Zero(tag_t()));
-				repulsion *= repulsion;
-				repulsion *= hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff);
+				repulsion = hn::Mul(repulsion, repulsion);
+				repulsion = hn::Mul(repulsion, hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff));
 			}
 
 			// compute adhesion
@@ -301,7 +301,7 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 				{
 					adhesion = hn::Sub(hn::Set(tag_t(), 1), hn::Div(distance, adhesion_distance));
 
-					adhesion *= adhesion;
+					adhesion = hn::Mul(adhesion, adhesion);
 
 					const index_simd_t lhs_indices = hn::Iota(index_tag_t(), lhs);
 					const index_simd_t rhs_indices = hn::Iota(index_tag_t(), rhs);
@@ -313,8 +313,9 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 					simd_t lhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, lhs_index);
 					simd_t rhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, rhs_index);
 
-					adhesion *= hn::Sqrt(hn::Mul(hn::Mul(lhs_adhesion_coeff, rhs_adhesion_coeff),
-												 hn::Mul(lhs_adhesion_affinity, rhs_adhesion_affinity)));
+					adhesion =
+						hn::Mul(adhesion, hn::Sqrt(hn::Mul(hn::Mul(lhs_adhesion_coeff, rhs_adhesion_coeff),
+														   hn::Mul(lhs_adhesion_affinity, rhs_adhesion_affinity))));
 				}
 			}
 			else
@@ -324,7 +325,7 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 
 				adhesion = hn::Sub(hn::Set(tag_t(), 1), hn::Div(distance, adhesion_distance));
 				adhesion = hn::Max(adhesion, hn::Zero(tag_t()));
-				adhesion *= adhesion;
+				adhesion = hn::Mul(adhesion, adhesion);
 
 				const index_simd_t lhs_indices = hn::Iota(index_tag_t(), lhs);
 				const index_simd_t rhs_indices = hn::Iota(index_tag_t(), rhs);
@@ -336,8 +337,8 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 				simd_t lhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, lhs_index);
 				simd_t rhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, rhs_index);
 
-				adhesion *= hn::Sqrt(hn::Mul(hn::Mul(lhs_adhesion_coeff, rhs_adhesion_coeff),
-											 hn::Mul(lhs_adhesion_affinity, rhs_adhesion_affinity)));
+				adhesion = hn::Mul(adhesion, hn::Sqrt(hn::Mul(hn::Mul(lhs_adhesion_coeff, rhs_adhesion_coeff),
+															  hn::Mul(lhs_adhesion_affinity, rhs_adhesion_affinity))));
 			}
 
 			simd_t force = hn::Div(hn::Sub(repulsion, adhesion), distance);
