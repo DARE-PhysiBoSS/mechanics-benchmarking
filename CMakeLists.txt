@@ -11,6 +11,17 @@ find_package(hwy CONFIG REQUIRED)
 
 find_package(OpenMP REQUIRED)
 
+option(NO_PAPI "Disable PAPI performance measurements" OFF)
+
+# Find and link PAPI
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PAPI IMPORTED_TARGET papi)
+
+if(NO_PAPI)
+  target_compile_definitions(mechanize PRIVATE NO_PAPI)
+endif()
+target_link_libraries(mechanize PRIVATE PkgConfig::PAPI)
+
 target_link_libraries(
   mechanize PRIVATE argparse::argparse nlohmann_json::nlohmann_json hwy::hwy
                     OpenMP::OpenMP_CXX)
