@@ -276,7 +276,7 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 				{
 					repulsion = hn::Sub(hn::Set(tag_t(), 1), hn::Div(distance, repulsive_distance));
 					repulsion = hn::Mul(repulsion, repulsion);
-					repulsion = hn::Mul(repulsion, hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff));
+					repulsion = hn::Mul(repulsion, hn::Sqrt(hn::Mul(lhs_repulsion_coeff, rhs_repulsion_coeff)));
 				}
 			}
 			else
@@ -286,7 +286,7 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 				repulsion = hn::Sub(hn::Set(tag_t(), 1), hn::Div(distance, repulsive_distance));
 				repulsion = hn::Max(repulsion, hn::Zero(tag_t()));
 				repulsion = hn::Mul(repulsion, repulsion);
-				repulsion = hn::Mul(repulsion, hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff));
+				repulsion = hn::Mul(repulsion, hn::Sqrt(hn::Mul(lhs_repulsion_coeff, rhs_repulsion_coeff)));
 			}
 
 			// compute adhesion
