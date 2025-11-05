@@ -238,11 +238,11 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 			simd_t position_difference_y;
 			simd_t position_difference_z;
 
-			position_difference_x = lhs_position_x - rhs_position_x;
+			position_difference_x = hn::Sub(lhs_position_x, rhs_position_x);
 			if constexpr (dims > 1)
-				position_difference_y = lhs_position_y - rhs_position_y;
+				position_difference_y = hn::Sub(lhs_position_y, rhs_position_y);
 			if constexpr (dims > 2)
-				position_difference_z = lhs_position_z - rhs_position_z;
+				position_difference_z = hn::Sub(lhs_position_z, rhs_position_z);
 
 			simd_t distance;
 			if constexpr (dims == 1)
@@ -251,13 +251,13 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 			}
 			else if constexpr (dims == 2)
 			{
-				simd_t tmp = position_difference_x * position_difference_x;
+				simd_t tmp = hn::Mul(position_difference_x, position_difference_x);
 				tmp = hn::MulAdd(position_difference_y, position_difference_y, tmp);
 				distance = hn::Sqrt(tmp);
 			}
 			else // dims == 3
 			{
-				simd_t tmp = position_difference_x * position_difference_x;
+				simd_t tmp = hn::Mul(position_difference_x, position_difference_x);
 				tmp = hn::MulAdd(position_difference_y, position_difference_y, tmp);
 				tmp = hn::MulAdd(position_difference_z, position_difference_z, tmp);
 				distance = hn::Sqrt(tmp);
@@ -270,20 +270,20 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 			if (try_skip_repulsion)
 			{
 				repulsion = hn::Zero(tag_t());
-				const simd_t repulsive_distance = lhs_radius + rhs_radius;
+				const simd_t repulsive_distance = hn::Add(lhs_radius, rhs_radius);
 
 				if (!hn::AllTrue(tag_t(), hn::Gt(distance, repulsive_distance)))
 				{
-					repulsion = hn::Set(tag_t(), 1) - distance / repulsive_distance;
+					repulsion = hn::Sub(hn::Set(tag_t(), 1), hn::Div(distance, repulsive_distance));
 					repulsion *= repulsion;
 					repulsion *= hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff);
 				}
 			}
 			else
 			{
-				const simd_t repulsive_distance = lhs_radius + rhs_radius;
+				const simd_t repulsive_distance = hn::Add(lhs_radius, rhs_radius);
 
-				repulsion = hn::Set(tag_t(), 1) - distance / repulsive_distance;
+				repulsion = hn::Sub(hn::Set(tag_t(), 1), hn::Div(distance, repulsive_distance));
 				repulsion = hn::Max(repulsion, hn::Zero(tag_t()));
 				repulsion *= repulsion;
 				repulsion *= hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff);
@@ -294,12 +294,12 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 			if (try_skip_adhesion)
 			{
 				adhesion = hn::Zero(tag_t());
-				simd_t tmp = lhs_relative_maximum_adhesion_distance * lhs_radius;
+				simd_t tmp = hn::Mul(lhs_relative_maximum_adhesion_distance, lhs_radius);
 				const simd_t adhesion_distance = hn::MulAdd(rhs_relative_maximum_adhesion_distance, rhs_radius, tmp);
 
 				if (!hn::AllTrue(tag_t(), hn::Gt(distance, adhesion_distance)))
 				{
-					adhesion = hn::Set(tag_t(), 1) - distance / adhesion_distance;
+					adhesion = hn::Sub(hn::Set(tag_t(), 1), hn::Div(distance, adhesion_distance));
 
 					adhesion *= adhesion;
 
@@ -313,16 +313,16 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 					simd_t lhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, lhs_index);
 					simd_t rhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, rhs_index);
 
-					adhesion *= hn::Sqrt(lhs_adhesion_coeff * rhs_adhesion_coeff * lhs_adhesion_affinity
-										 * rhs_adhesion_affinity);
+					adhesion *= hn::Sqrt(hn::Mul(hn::Mul(lhs_adhesion_coeff, rhs_adhesion_coeff),
+												 hn::Mul(lhs_adhesion_affinity, rhs_adhesion_affinity)));
 				}
 			}
 			else
 			{
-				simd_t tmp = lhs_relative_maximum_adhesion_distance * lhs_radius;
+				simd_t tmp = hn::Mul(lhs_relative_maximum_adhesion_distance, lhs_radius);
 				const simd_t adhesion_distance = hn::MulAdd(rhs_relative_maximum_adhesion_distance, rhs_radius, tmp);
 
-				adhesion = hn::Set(tag_t(), 1) - distance / adhesion_distance;
+				adhesion = hn::Sub(hn::Set(tag_t(), 1), hn::Div(distance, adhesion_distance));
 				adhesion = hn::Max(adhesion, hn::Zero(tag_t()));
 				adhesion *= adhesion;
 
@@ -336,11 +336,11 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 				simd_t lhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, lhs_index);
 				simd_t rhs_adhesion_affinity = hn::GatherIndex(tag_t(), adhesion_affinity, rhs_index);
 
-				adhesion *=
-					hn::Sqrt(lhs_adhesion_coeff * rhs_adhesion_coeff * lhs_adhesion_affinity * rhs_adhesion_affinity);
+				adhesion *= hn::Sqrt(hn::Mul(hn::Mul(lhs_adhesion_coeff, rhs_adhesion_coeff),
+											 hn::Mul(lhs_adhesion_affinity, rhs_adhesion_affinity)));
 			}
 
-			simd_t force = (repulsion - adhesion) / distance;
+			simd_t force = hn::Div(hn::Sub(repulsion, adhesion), distance);
 
 			lhs_velocity_x = hn::MulAdd(force, position_difference_x, lhs_velocity_x);
 			if constexpr (dims > 1)
