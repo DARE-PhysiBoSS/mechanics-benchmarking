@@ -123,7 +123,7 @@ void grid_solver<real_t>::solve()
 				index_t neighbour_voxel = neighbours_indices[k];
 				std::vector<std::size_t> agents_in_neighbour = grid_.get_agents_in_voxel(neighbour_voxel);
 
-				for (int n = 0; n < agents_in_neighbour.size(); ++n)
+				for (std::size_t n = 0; n < agents_in_neighbour.size(); ++n)
 				{
 					index_t neighbour_id = agents_in_neighbour[n];
 
@@ -175,12 +175,12 @@ void grid_solver<real_t>::solve()
 
 	// update cells' grid position
 
-	for (index_t i = 0; i < grid_.get_grid_size(); i++)
+	for (std::size_t i = 0; i < grid_.get_grid_size(); i++)
 	{
 		std::vector<std::size_t> agents_in_voxel = grid_.get_agents_in_voxel(i);
-		for (index_t j = 0; j < agents_in_voxel.size();)
+		for (std::size_t j = 0; j < agents_in_voxel.size();)
 		{
-			index_t agent_id = agents_in_voxel[j];
+			std::size_t agent_id = agents_in_voxel[j];
 
 			std::vector<real_t> pos(3, 0.0);
 
@@ -235,11 +235,11 @@ void grid_solver<real_t>::initialize(const nlohmann::json& params, const problem
 
 	std::vector<real_t> grid_domain(0);
 
-	for (int i = 0; i < problem.dims; ++i)
+	for (std::size_t i = 0; i < problem.dims; ++i)
 		grid_domain.push_back(problem.domain_size[i]);
 
 	grid_ = Grid<real_t>(grid_domain, voxel_size);
-	for (int i = 0; i < agents_count_; ++i)
+	for (index_t i = 0; i < agents_count_; ++i)
 	{
 		std::vector<real_t> pos(problem.dims);
 		for (size_t d = 0; d < problem.dims; ++d)

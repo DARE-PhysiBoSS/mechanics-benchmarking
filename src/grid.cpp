@@ -209,8 +209,6 @@ std::size_t Grid<real_t>::voxel_index(std::vector<real_t> position)
 	}
 	if (index >= grid_cells.size())
 		return grid_cells.size() - 1;
-	else if (index < 0)
-		return 0;
 	return index;
 }
 
