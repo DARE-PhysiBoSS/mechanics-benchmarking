@@ -275,6 +275,7 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 				if (!hn::AllTrue(tag_t(), hn::Gt(distance, repulsive_distance)))
 				{
 					repulsion = hn::Sub(hn::Set(tag_t(), 1), hn::Div(distance, repulsive_distance));
+					repulsion = hn::Max(repulsion, hn::Zero(tag_t()));
 					repulsion = hn::Mul(repulsion, repulsion);
 					repulsion = hn::Mul(repulsion, hn::Sqrt(hn::Mul(lhs_repulsion_coeff, rhs_repulsion_coeff)));
 				}
@@ -300,7 +301,7 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 				if (!hn::AllTrue(tag_t(), hn::Gt(distance, adhesion_distance)))
 				{
 					adhesion = hn::Sub(hn::Set(tag_t(), 1), hn::Div(distance, adhesion_distance));
-
+					adhesion = hn::Max(adhesion, hn::Zero(tag_t()));
 					adhesion = hn::Mul(adhesion, adhesion);
 
 					const index_simd_t lhs_indices = hn::Iota(index_tag_t(), lhs);
