@@ -13,7 +13,7 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 								 const real_t* __restrict__ relative_maximum_adhesion_distance,
 								 const real_t* __restrict__ adhesion_affinity, const index_t* __restrict__ agent_type)
 {
-	real_t position_difference[dims];
+	real_t position_difference[3];
 
 	const real_t distance = std::max<real_t>(position_helper<dims>::difference_and_distance(
 												 position + lhs * dims, position + rhs * dims, position_difference),
@@ -91,6 +91,8 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 
 	real_t force = (repulsion - adhesion) / distance;
 
+
+
 	if constexpr (use_symmetry)
 	{
 		position_helper<dims>::update_velocities_atomic(velocity + lhs * dims, velocity + rhs * dims,
@@ -100,6 +102,14 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 	{
 		position_helper<dims>::update_velocity(velocity + lhs * dims, position_difference, force);
 	}
+
+	std::cout << lhs << " <- " << rhs << ": repulsion=" << repulsion << ", adhesion=" << adhesion << ", force=" << force
+			  << ", position_difference_x=" << position_difference[0]
+			  << ", position_difference_y=" << (dims > 1 ? position_difference[1] : 0)
+			  << ", position_difference_z=" << (dims > 2 ? position_difference[2] : 0)
+			  << ", lhs_velocity_x=" << velocity[lhs * dims + 0]
+			  << ", lhs_velocity_y=" << (dims > 1 ? velocity[lhs * dims + 1] : 0)
+			  << ", lhs_velocity_z=" << (dims > 2 ? velocity[lhs * dims + 2] : 0) << std::endl;
 }
 
 template <typename real_t>
@@ -163,11 +173,14 @@ void base_solver<real_t>::solve()
 #pragma omp parallel for schedule(static)
 	for (index_t i = 0; i < agents_count_; i++)
 	{
+		std::cout << i << " <- " << i << ": ";
 		for (index_t d = 0; d < dims_; d++)
 		{
 			positions_[i * dims_ + d] += velocities_[i * dims_ + d] * timestep_;
+			std::cout << "pos[" << d << "]=" << positions_[i * dims_ + d] << " ";
 			velocities_[i * dims_ + d] = 0;
 		}
+		std::cout << std::endl;
 	}
 }
 

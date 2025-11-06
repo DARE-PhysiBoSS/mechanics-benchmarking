@@ -124,6 +124,13 @@ static constexpr void solve_pair_scalar(
 		velocity_y[lhs] += force * position_difference_y;
 	if constexpr (dims > 2)
 		velocity_z[lhs] += force * position_difference_z;
+
+	std::cout << lhs << " <- " << rhs << ": repulsion=" << repulsion << ", adhesion=" << adhesion << ", force=" << force
+			  << ", position_difference_x=" << position_difference_x
+			  << ", position_difference_y=" << (dims > 1 ? position_difference_y : 0)
+			  << ", position_difference_z=" << (dims > 2 ? position_difference_z : 0)
+			  << ", lhs_velocity_x=" << velocity_x[lhs] << ", lhs_velocity_y=" << (dims > 1 ? velocity_y[lhs] : 0)
+			  << ", lhs_velocity_z=" << (dims > 2 ? velocity_z[lhs] : 0) << std::endl;
 }
 
 template <std::size_t dims, typename index_t, typename real_t>
@@ -153,10 +160,10 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 					continue;
 
 				// std::cout << "Solving pair: (" << i << ", " << j << ")" << std::endl;
-				solve_pair_scalar<dims>(try_skip_repulsion, try_skip_adhesion, i, j, agent_types_count, velocity_x,
-										velocity_y, velocity_z, position_x, position_y, position_z, radius,
-										repulsion_coeff, adhesion_coeff, relative_maximum_adhesion_distance,
-										adhesion_affinity, agent_type);
+				solve_pair_scalar<dims>(false, try_skip_adhesion, i, j, agent_types_count, velocity_x, velocity_y,
+										velocity_z, position_x, position_y, position_z, radius, repulsion_coeff,
+										adhesion_coeff, relative_maximum_adhesion_distance, adhesion_affinity,
+										agent_type);
 			}
 		}
 
@@ -169,20 +176,8 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 		for (index_t j = 0; j < i; j++)
 		{
 			// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
-			solve_pair_scalar<dims>(try_skip_repulsion, try_skip_adhesion, lhs + i, j, agent_types_count, velocity_x,
-									velocity_y, velocity_z, position_x, position_y, position_z, radius, repulsion_coeff,
-									adhesion_coeff, relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
-		}
-	}
-
-	// Handle scalar triangle end
-	for (index_t i = 0; i < lanes - 1; i++)
-	{
-		for (index_t j = agents_count - lanes + i + 1; j < agents_count; j++)
-		{
-			// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
-			solve_pair_scalar<dims>(try_skip_repulsion, try_skip_adhesion, lhs + i, j, agent_types_count, velocity_x,
-									velocity_y, velocity_z, position_x, position_y, position_z, radius, repulsion_coeff,
+			solve_pair_scalar<dims>(false, try_skip_adhesion, lhs + i, j, agent_types_count, velocity_x, velocity_y,
+									velocity_z, position_x, position_y, position_z, radius, repulsion_coeff,
 									adhesion_coeff, relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
 		}
 	}
@@ -275,6 +270,7 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 				if (!hn::AllTrue(tag_t(), hn::Gt(distance, repulsive_distance)))
 				{
 					repulsion = hn::Set(tag_t(), 1) - distance / repulsive_distance;
+					repulsion = hn::Max(repulsion, hn::Zero(tag_t()));
 					repulsion *= repulsion;
 					repulsion *= hn::Sqrt(lhs_repulsion_coeff * rhs_repulsion_coeff);
 				}
@@ -300,7 +296,7 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 				if (!hn::AllTrue(tag_t(), hn::Gt(distance, adhesion_distance)))
 				{
 					adhesion = hn::Set(tag_t(), 1) - distance / adhesion_distance;
-
+					adhesion = hn::Max(adhesion, hn::Zero(tag_t()));
 					adhesion *= adhesion;
 
 					const index_simd_t lhs_indices = hn::Iota(index_tag_t(), lhs);
@@ -347,6 +343,23 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 				lhs_velocity_y = hn::MulAdd(force, position_difference_y, lhs_velocity_y);
 			if constexpr (dims > 2)
 				lhs_velocity_z = hn::MulAdd(force, position_difference_z, lhs_velocity_z);
+
+			for (index_t offset = 0; offset < lanes; offset++)
+			{
+				std::cout << (lhs + offset) << " <- " << rhs + offset
+						  << ": repulsion=" << hn::ExtractLane(repulsion, offset)
+						  << ", adhesion=" << hn::ExtractLane(adhesion, offset)
+						  << ", force=" << hn::ExtractLane(force, offset)
+						  << ", position_difference_x=" << hn::ExtractLane(position_difference_x, offset)
+						  << ", position_difference_y="
+						  << (dims > 1 ? hn::ExtractLane(position_difference_y, offset) : 0)
+						  << ", position_difference_z="
+						  << (dims > 2 ? hn::ExtractLane(position_difference_z, offset) : 0)
+						  << ", lhs_velocity_x=" << hn::ExtractLane(lhs_velocity_x, offset)
+						  << ", lhs_velocity_y=" << (dims > 1 ? hn::ExtractLane(lhs_velocity_y, offset) : 0)
+						  << ", lhs_velocity_z=" << (dims > 2 ? hn::ExtractLane(lhs_velocity_z, offset) : 0)
+						  << std::endl;
+			}
 		}
 	}
 
@@ -355,6 +368,18 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 		hn::StoreU(lhs_velocity_y, tag_t(), velocity_y + lhs);
 	if constexpr (dims > 2)
 		hn::StoreU(lhs_velocity_z, tag_t(), velocity_z + lhs);
+
+	// Handle scalar triangle end
+	for (index_t i = 0; i < lanes - 1; i++)
+	{
+		for (index_t j = agents_count - lanes + i + 1; j < agents_count; j++)
+		{
+			// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
+			solve_pair_scalar<dims>(false, try_skip_adhesion, lhs + i, j, agent_types_count, velocity_x, velocity_y,
+									velocity_z, position_x, position_y, position_z, radius, repulsion_coeff,
+									adhesion_coeff, relative_maximum_adhesion_distance, adhesion_affinity, agent_type);
+		}
+	}
 }
 
 template <typename real_t>

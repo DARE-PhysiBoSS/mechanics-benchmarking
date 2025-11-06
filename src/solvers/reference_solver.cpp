@@ -1,5 +1,7 @@
 #include "reference_solver.h"
 
+#include <iostream>
+
 #include "../agent_distributor.h"
 #include "solver_helper.h"
 
@@ -53,6 +55,16 @@ void solve_pair(index_t lhs, index_t rhs, index_t agent_types_count, real_t* __r
 	real_t force = (repulsion - adhesion) / distance;
 
 	position_helper<dims>::update_velocity(velocity + lhs * dims, position_difference, force);
+
+
+	// std::cout << lhs << " <- " << rhs << ": repulsion=" << repulsion << ", adhesion=" << adhesion << ", force=" <<
+	// force
+	// 		  << ", position_difference_x=" << position_difference[0]
+	// 		  << ", position_difference_y=" << (dims > 1 ? position_difference[1] : 0)
+	// 		  << ", position_difference_z=" << (dims > 2 ? position_difference[2] : 0)
+	// 		  << ", lhs_velocity_x=" << velocity[lhs * dims + 0]
+	// 		  << ", lhs_velocity_y=" << (dims > 1 ? velocity[lhs * dims + 1] : 0)
+	// 		  << ", lhs_velocity_z=" << (dims > 2 ? velocity[lhs * dims + 2] : 0) << std::endl;
 }
 
 template <typename real_t>
@@ -83,11 +95,14 @@ void reference_solver<real_t>::solve()
 	// Update positions based on velocities
 	for (index_t i = 0; i < agents_count_; i++)
 	{
+		// std::cout << i << " <- " << i << ": ";
 		for (index_t d = 0; d < dims_; d++)
 		{
 			positions_[i * dims_ + d] += velocities_[i * dims_ + d] * timestep_;
+			// std::cout << "pos[" << d << "]=" << positions_[i * dims_ + d] << " ";
 			velocities_[i * dims_ + d] = 0;
 		}
+		// std::cout << std::endl;
 	}
 }
 
