@@ -13,7 +13,7 @@
                 "CMAKE_C_FLAGS_DEBUG_INIT": "-Wall -Wextra -Wpedantic -fsanitize=address -fsanitize=leak -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=undefined -fsanitize-undefined-trap-on-error -march=native",
                 "CMAKE_CXX_FLAGS_DEBUG_INIT": "-Wall -Wextra -Wpedantic -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=undefined -fsanitize-undefined-trap-on-error -march=native",
                 "CMAKE_C_FLAGS_RELEASE_INIT": "-Wall -Wextra -Wpedantic -march=native",
-                "CMAKE_CXX_FLAGS_RELEASE_INIT": "-Wall -Wextra -Wpedantic -march=native -g"
+                "CMAKE_CXX_FLAGS_RELEASE_INIT": "-Wall -Wextra -Wpedantic -march=native"
             }
         },
         {
