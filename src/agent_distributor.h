@@ -150,7 +150,7 @@ void agent_distributor<real_t>::initialize_default_properties(const problem_t& p
 		}
 
 		// Set default physical properties
-		radius_[i] = static_cast<real_t>(100.0);
+		radius_[i] = static_cast<real_t>(10.0);
 		repulsion_coeff_[i] = static_cast<real_t>(10.0);
 		adhesion_coeff_[i] = static_cast<real_t>(0.4);
 		max_adhesion_distance_[i] = static_cast<real_t>(1.25);

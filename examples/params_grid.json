@@ -5,8 +5,8 @@
     "try_skip_repulsion": false,
     "try_skip_adhesion": false,
     "voxel_size": [
-        10.0,
-        10.0,
-        10.0
+        30.0,
+        30.0,
+        30.0
     ]
 }
