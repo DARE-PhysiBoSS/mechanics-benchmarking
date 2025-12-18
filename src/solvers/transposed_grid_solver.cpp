@@ -155,12 +155,15 @@ static constexpr void solve_pair(
 	for (index_t lhs = 0; lhs < lhs_count; lhs += lanes)
 	{
 		// Handle scalar remainder
-		if (lhs + lanes > lhs_count)
+		if (lhs + lanes > lhs_count || rhs_count < lanes)
 		{
 			for (index_t i = lhs; i < lhs_count; i++)
 			{
 				for (index_t j = 0; j < rhs_count; j++)
 				{
+					if (i == j)
+						continue;
+
 					// std::cout << "Solving pair: (" << i << ", " << j << ")" << std::endl;
 					solve_pair_scalar<dims>(
 						try_skip_repulsion, try_skip_adhesion, i, j, agent_types_count, lhs_velocity_x, lhs_velocity_y,
@@ -172,7 +175,39 @@ static constexpr void solve_pair(
 				}
 			}
 
-			return;
+			continue;
+		}
+
+		// Handle scalar triangle begin
+		for (index_t i = 1; i < lanes; i++)
+		{
+			for (index_t j = 0; j < i; j++)
+			{
+				// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
+				solve_pair_scalar<dims>(try_skip_repulsion, try_skip_adhesion, lhs + i, j, agent_types_count,
+										lhs_velocity_x, lhs_velocity_y, lhs_velocity_z, lhs_position_x, lhs_position_y,
+										lhs_position_z, lhs_radius, lhs_repulsion_coeff, lhs_adhesion_coeff,
+										lhs_relative_maximum_adhesion_distance, lhs_adhesion_affinity, lhs_agent_type,
+										rhs_position_x, rhs_position_y, rhs_position_z, rhs_radius, rhs_repulsion_coeff,
+										rhs_adhesion_coeff, rhs_relative_maximum_adhesion_distance,
+										rhs_adhesion_affinity, rhs_agent_type);
+			}
+		}
+
+		// Handle scalar triangle end
+		for (index_t i = 0; i < lanes - 1; i++)
+		{
+			for (index_t j = rhs_count - lanes + i + 1; j < rhs_count; j++)
+			{
+				// std::cout << "Solving pair: (" << (lhs + i) << ", " << j << ")" << std::endl;
+				solve_pair_scalar<dims>(try_skip_repulsion, try_skip_adhesion, lhs + i, j, agent_types_count,
+										lhs_velocity_x, lhs_velocity_y, lhs_velocity_z, lhs_position_x, lhs_position_y,
+										lhs_position_z, lhs_radius, lhs_repulsion_coeff, lhs_adhesion_coeff,
+										lhs_relative_maximum_adhesion_distance, lhs_adhesion_affinity, lhs_agent_type,
+										rhs_position_x, rhs_position_y, rhs_position_z, rhs_radius, rhs_repulsion_coeff,
+										rhs_adhesion_coeff, rhs_relative_maximum_adhesion_distance,
+										rhs_adhesion_affinity, rhs_agent_type);
+			}
 		}
 
 		const simd_t lhs_radius_vec = hn::LoadU(tag_t(), lhs_radius + lhs);
@@ -201,6 +236,8 @@ static constexpr void solve_pair(
 
 		for (index_t rhs = 0; rhs < rhs_count - lanes + 1; rhs++)
 		{
+			if (rhs == lhs)
+				continue;
 			// std::cout << "Solving vector: ([" << lhs << "," << lhs + lanes << "], [" << rhs << "," << rhs + lanes
 			// << "])"
 			// 		  << std::endl;
@@ -344,21 +381,6 @@ static constexpr void solve_pair(
 			}
 		}
 
-		// Handle scalar remainder for rhs
-		for (index_t i = lhs; i < lhs + lanes; i++)
-		{
-			for (index_t j = rhs_count - lanes + 1; j < rhs_count; j++)
-			{
-				// std::cout << "Solving pair: (" << i << ", " << j << ")" << std::endl;
-				solve_pair_scalar<dims>(
-					try_skip_repulsion, try_skip_adhesion, i, j, agent_types_count, lhs_velocity_x, lhs_velocity_y,
-					lhs_velocity_z, lhs_position_x, lhs_position_y, lhs_position_z, lhs_radius, lhs_repulsion_coeff,
-					lhs_adhesion_coeff, lhs_relative_maximum_adhesion_distance, lhs_adhesion_affinity, lhs_agent_type,
-					rhs_position_x, rhs_position_y, rhs_position_z, rhs_radius, rhs_repulsion_coeff, rhs_adhesion_coeff,
-					rhs_relative_maximum_adhesion_distance, rhs_adhesion_affinity, rhs_agent_type);
-			}
-		}
-
 		hn::StoreU(lhs_velocity_x_vec, tag_t(), lhs_velocity_x + lhs);
 		if constexpr (dims > 1)
 			hn::StoreU(lhs_velocity_y_vec, tag_t(), lhs_velocity_y + lhs);
@@ -375,12 +397,12 @@ void reorder_agents(std::unique_ptr<voxel_data<real_t, index_t>[]>& grid,
 					std::array<index_t, 3> grid_dims_, std::array<real_t, 3> domain_size_,
 					std::array<real_t, 3> voxel_size_)
 {
-	// Reorder agents into voxels based on their grid indices
+// Reorder agents into voxels based on their grid indices
 #pragma omp parallel for schedule(static)
 	for (index_t agent_i = 0; agent_i < total_agents; agent_i++)
 	{
 		index_t voxel_idx = agent_indices[agent_i].voxel_idx;
-		index_t local_idx = voxel_agent_counts[voxel_idx]++;
+		index_t local_idx = agent_indices[agent_i].local_idx;
 
 		voxel_data<real_t, index_t>& voxel = grid[voxel_idx];
 
@@ -424,6 +446,9 @@ void reorder_agents(std::unique_ptr<voxel_data<real_t, index_t>[]>& grid,
 		new_voxel.max_adhesion_distance.data()[new_local_idx] = voxel.max_adhesion_distance.data()[local_idx];
 		new_voxel.adhesion_affinity.data()[new_local_idx] = voxel.adhesion_affinity.data()[local_idx];
 		new_voxel.agent_types.data()[new_local_idx] = voxel.agent_types.data()[local_idx];
+
+		agent_indices[agent_i].voxel_idx = new_voxel_idx;
+		agent_indices[agent_i].local_idx = new_local_idx;
 	}
 
 	// Swap grids
@@ -431,15 +456,9 @@ void reorder_agents(std::unique_ptr<voxel_data<real_t, index_t>[]>& grid,
 }
 
 template <std::size_t dims, typename real_t, typename index_t>
-void solve_voxel_pair(voxel_data<real_t, index_t>& lhs, voxel_data<real_t, index_t>& rhs, bool try_skip_repulsion,
-					  bool try_skip_adhesion, index_t agent_types_count)
+void solve_voxel_pair(voxel_data<real_t, index_t>& lhs, voxel_data<real_t, index_t>& rhs, index_t lhs_count,
+					  index_t rhs_count, bool try_skip_repulsion, bool try_skip_adhesion, index_t agent_types_count)
 {
-	index_t lhs_count = static_cast<index_t>(lhs.agent_indices.size());
-	index_t rhs_count = static_cast<index_t>(rhs.agent_indices.size());
-
-	if (lhs_count == 0 || rhs_count == 0)
-		return;
-
 	solve_pair<dims>(try_skip_repulsion, try_skip_adhesion, lhs_count, rhs_count, agent_types_count,
 					 lhs.velocitiesx.data(), lhs.velocitiesy.data(), lhs.velocitiesz.data(), lhs.positionsx.data(),
 					 lhs.positionsy.data(), lhs.positionsz.data(), lhs.radius.data(), lhs.repulsion_coeff.data(),
@@ -452,7 +471,7 @@ void solve_voxel_pair(voxel_data<real_t, index_t>& lhs, voxel_data<real_t, index
 template <typename real_t>
 void transposed_grid_solver<real_t>::solve()
 {
-	// Process voxel pairs for interactions
+// Process voxel pairs for interactions
 #pragma omp parallel for schedule(static) collapse(3)
 	for (index_t x = 0; x < grid_dims_[0]; x++)
 	{
@@ -462,17 +481,7 @@ void transposed_grid_solver<real_t>::solve()
 			{
 				index_t voxel_idx = x + y * grid_dims_[0] + z * grid_dims_[0] * grid_dims_[1];
 				voxel_data<real_t, index_t>& current_voxel = grid_current_[voxel_idx];
-
-				// Self-interaction (agents within the same voxel)
-				if (dims_ == 1)
-					solve_voxel_pair<1>(current_voxel, current_voxel, try_skip_repulsion_, try_skip_adhesion_,
-										agent_types_count_);
-				else if (dims_ == 2)
-					solve_voxel_pair<2>(current_voxel, current_voxel, try_skip_repulsion_, try_skip_adhesion_,
-										agent_types_count_);
-				else if (dims_ == 3)
-					solve_voxel_pair<3>(current_voxel, current_voxel, try_skip_repulsion_, try_skip_adhesion_,
-										agent_types_count_);
+				index_t current_voxel_agent_count = voxel_agent_counts_[voxel_idx].load(std::memory_order_relaxed);
 
 				// Iterate over neighboring voxels
 				for (index_t dx = -1; dx <= 1; dx++)
@@ -484,32 +493,41 @@ void transposed_grid_solver<real_t>::solve()
 					for (index_t dy = -1; dy <= 1; dy++)
 					{
 						index_t ny = y + dy;
-						if (dims_ > 1 && (ny < 0 || ny >= grid_dims_[1]))
+						if (ny < 0 || ny >= grid_dims_[1])
 							continue;
 
 						for (index_t dz = -1; dz <= 1; dz++)
 						{
 							index_t nz = z + dz;
-							if (dims_ > 2 && (nz < 0 || nz >= grid_dims_[2]))
-								continue;
-
-							// Skip self (already handled above)
-							if (dx == 0 && dy == 0 && dz == 0)
+							if (nz < 0 || nz >= grid_dims_[2])
 								continue;
 
 							index_t neighbor_idx = nx + ny * grid_dims_[0] + nz * grid_dims_[0] * grid_dims_[1];
 							voxel_data<real_t, index_t>& neighbor_voxel = grid_current_[neighbor_idx];
+							index_t neighbor_voxel_agent_count =
+								voxel_agent_counts_[neighbor_idx].load(std::memory_order_relaxed);
+
+
+							if (current_voxel_agent_count == 0 || neighbor_voxel_agent_count == 0)
+								continue;
+
+							// std::cout << "Processing voxel pair: (" << voxel_idx << ", " << neighbor_idx << ")"
+							// 		  << " with agent counts: (" << current_voxel_agent_count << ", "
+							// 		  << neighbor_voxel_agent_count << ")" << std::endl;
 
 							// Process interaction between current and neighbor voxel
 							if (dims_ == 1)
-								solve_voxel_pair<1>(current_voxel, neighbor_voxel, try_skip_repulsion_,
-													try_skip_adhesion_, agent_types_count_);
+								solve_voxel_pair<1>(current_voxel, neighbor_voxel, current_voxel_agent_count,
+													neighbor_voxel_agent_count, try_skip_repulsion_, try_skip_adhesion_,
+													agent_types_count_);
 							else if (dims_ == 2)
-								solve_voxel_pair<2>(current_voxel, neighbor_voxel, try_skip_repulsion_,
-													try_skip_adhesion_, agent_types_count_);
+								solve_voxel_pair<2>(current_voxel, neighbor_voxel, current_voxel_agent_count,
+													neighbor_voxel_agent_count, try_skip_repulsion_, try_skip_adhesion_,
+													agent_types_count_);
 							else if (dims_ == 3)
-								solve_voxel_pair<3>(current_voxel, neighbor_voxel, try_skip_repulsion_,
-													try_skip_adhesion_, agent_types_count_);
+								solve_voxel_pair<3>(current_voxel, neighbor_voxel, current_voxel_agent_count,
+													neighbor_voxel_agent_count, try_skip_repulsion_, try_skip_adhesion_,
+													agent_types_count_);
 						}
 					}
 				}
@@ -522,7 +540,8 @@ void transposed_grid_solver<real_t>::solve()
 	for (index_t voxel_idx = 0; voxel_idx < grid_dims_[0] * grid_dims_[1] * grid_dims_[2]; voxel_idx++)
 	{
 		voxel_data<real_t, index_t>& voxel = grid_current_[voxel_idx];
-		index_t agent_count = static_cast<index_t>(voxel.agent_indices.size());
+		index_t agent_count = voxel_agent_counts_[voxel_idx].load(std::memory_order_relaxed);
+		voxel_agent_counts_[voxel_idx].store(0, std::memory_order_relaxed);
 
 		for (index_t local_idx = 0; local_idx < agent_count; local_idx++)
 		{
@@ -573,9 +592,11 @@ void transposed_grid_solver<real_t>::initialize(const nlohmann::json& params, co
 	agent_distributor<real_t> distributor(problem);
 
 	// Calculate grid dimensions based on domain_size_ and voxel_size_
-	for (std::size_t i = 0; i < 3; ++i)
+	for (index_t i = 0; i < 3; ++i)
 	{
 		grid_dims_[i] = static_cast<index_t>(std::llround(std::ceil(domain_size_[i] / voxel_size_[i])));
+		if (i >= dims_)
+			grid_dims_[i] = 1;
 	}
 	index_t total_voxels = grid_dims_[0] * grid_dims_[1] * grid_dims_[2];
 
@@ -584,18 +605,48 @@ void transposed_grid_solver<real_t>::initialize(const nlohmann::json& params, co
 	voxel_agent_counts_ = std::make_unique<std::atomic<index_t>[]>(total_voxels);
 	agent_indices_ = std::make_unique<agent_grid_idx<index_t>[]>(agents_count_);
 
+#pragma omp parallel for schedule(static)
+	for (index_t i = 0; i < total_voxels; ++i)
+	{
+		auto resize = [&](auto& voxel) {
+			index_t agents_per_voxel_estimate = agents_count_;
+
+			voxel.agent_indices.resize(agents_per_voxel_estimate);
+			voxel.positionsx.resize(agents_per_voxel_estimate);
+			voxel.velocitiesx.resize(agents_per_voxel_estimate);
+			if (dims_ > 1)
+			{
+				voxel.positionsy.resize(agents_per_voxel_estimate);
+				voxel.velocitiesy.resize(agents_per_voxel_estimate);
+			}
+			if (dims_ > 2)
+			{
+				voxel.positionsz.resize(agents_per_voxel_estimate);
+				voxel.velocitiesz.resize(agents_per_voxel_estimate);
+			}
+			voxel.radius.resize(agents_per_voxel_estimate);
+			voxel.repulsion_coeff.resize(agents_per_voxel_estimate);
+			voxel.adhesion_coeff.resize(agents_per_voxel_estimate);
+			voxel.max_adhesion_distance.resize(agents_per_voxel_estimate);
+			voxel.adhesion_affinity.resize(agents_per_voxel_estimate * agent_types_count_);
+			voxel.agent_types.resize(agents_per_voxel_estimate);
+		};
+		resize(grid_current_[i]);
+		resize(grid_next_[i]);
+		voxel_agent_counts_[i].store(0, std::memory_order_relaxed);
+	}
+
 	// Distribute agents into grid based on their positions
+#pragma omp parallel for schedule(static)
 	for (index_t agent_idx = 0; agent_idx < agents_count_; ++agent_idx)
 	{
 		// Get agent position
-		std::span<real_t, 3> pos = std::span<real_t, 3>(&distributor.positions_[agent_idx * dims_], dims_);
+		real_t* pos = &distributor.positions_[agent_idx * dims_];
 
 		// Calculate voxel index
-		index_t voxel_x = static_cast<index_t>(std::max(pos[0] - domain_size_[0], (real_t)0) / voxel_size_[0]);
-		index_t voxel_y =
-			(dims_ > 1) ? static_cast<index_t>(std::max(pos[1] - domain_size_[1], (real_t)0) / voxel_size_[1]) : 0;
-		index_t voxel_z =
-			(dims_ > 2) ? static_cast<index_t>(std::max(pos[2] - domain_size_[2], (real_t)0) / voxel_size_[2]) : 0;
+		index_t voxel_x = static_cast<index_t>(std::max(pos[0], (real_t)0) / voxel_size_[0]);
+		index_t voxel_y = (dims_ > 1) ? static_cast<index_t>(std::max(pos[1], (real_t)0) / voxel_size_[1]) : 0;
+		index_t voxel_z = (dims_ > 2) ? static_cast<index_t>(std::max(pos[2], (real_t)0) / voxel_size_[2]) : 0;
 
 		// Clamp to grid bounds
 		voxel_x = std::min(voxel_x, grid_dims_[0] - 1);
@@ -606,44 +657,43 @@ void transposed_grid_solver<real_t>::initialize(const nlohmann::json& params, co
 		index_t voxel_idx = voxel_x + voxel_y * grid_dims_[0] + voxel_z * grid_dims_[0] * grid_dims_[1];
 
 		// Get reference to the voxel
-		voxel_data<real_t, index_t>& voxel = grid_current_[voxel_idx];
+		auto& voxel = grid_current_[voxel_idx];
 
 		// Store local index within voxel for this agent
-		index_t local_idx = static_cast<index_t>(voxel.agent_indices.size());
+		index_t local_idx = voxel_agent_counts_[voxel_idx].fetch_add(1, std::memory_order_relaxed);
 
 		// Add agent data to voxel
-		voxel.agent_indices.push_back(agent_idx);
+		voxel.agent_indices[local_idx] = agent_idx;
 
 		// Copy position data
 		if (dims_ >= 1)
-			voxel.positionsx.push_back(distributor.positions_[agent_idx * dims_ + 0]);
+			voxel.positionsx[local_idx] = distributor.positions_[agent_idx * dims_ + 0];
 		if (dims_ >= 2)
-			voxel.positionsy.push_back(distributor.positions_[agent_idx * dims_ + 1]);
+			voxel.positionsy[local_idx] = distributor.positions_[agent_idx * dims_ + 1];
 		if (dims_ >= 3)
-			voxel.positionsz.push_back(distributor.positions_[agent_idx * dims_ + 2]);
+			voxel.positionsz[local_idx] = distributor.positions_[agent_idx * dims_ + 2];
 
 		// Initialize velocities to zero
-		voxel.velocitiesx.push_back(0);
+		voxel.velocitiesx[local_idx] = 0;
 		if (dims_ > 1)
-			voxel.velocitiesy.push_back(0);
+			voxel.velocitiesy[local_idx] = 0;
 		if (dims_ > 2)
-			voxel.velocitiesz.push_back(0);
+			voxel.velocitiesz[local_idx] = 0;
 
 		// Copy physical properties
-		voxel.radius.push_back(distributor.radius_[agent_idx]);
-		voxel.repulsion_coeff.push_back(distributor.repulsion_coeff_[agent_idx]);
-		voxel.adhesion_coeff.push_back(distributor.adhesion_coeff_[agent_idx]);
-		voxel.max_adhesion_distance.push_back(distributor.max_adhesion_distance_[agent_idx]);
+		voxel.radius[local_idx] = distributor.radius_[agent_idx];
+		voxel.repulsion_coeff[local_idx] = distributor.repulsion_coeff_[agent_idx];
+		voxel.adhesion_coeff[local_idx] = distributor.adhesion_coeff_[agent_idx];
+		voxel.max_adhesion_distance[local_idx] = distributor.max_adhesion_distance_[agent_idx];
 
 		// Copy adhesion affinity (entire row for this agent)
 		for (index_t type_idx = 0; type_idx < agent_types_count_; ++type_idx)
 		{
-			voxel.adhesion_affinity.push_back(
-				distributor.adhesion_affinity_[agent_idx * agent_types_count_ + type_idx]);
+			voxel.adhesion_affinity[local_idx * agent_types_count_ + type_idx] =
+				distributor.adhesion_affinity_[agent_idx * agent_types_count_ + type_idx];
 		}
 
-		voxel.agent_types.push_back(distributor.agent_types_[agent_idx]);
-
+		voxel.agent_types[local_idx] = distributor.agent_types_[agent_idx];
 		agent_indices_[agent_idx] = agent_grid_idx<index_t> { voxel_idx, local_idx };
 	}
 }
