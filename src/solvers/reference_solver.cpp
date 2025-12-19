@@ -58,35 +58,38 @@ void solve_pair(index_t lhs, index_t rhs, index_t agent_types_count, real_t* __r
 template <typename real_t>
 void reference_solver<real_t>::solve()
 {
-	for (index_t i = 0; i < agents_count_; i++)
+	for (index_t iter = 0; iter < iterations_; iter++)
 	{
-		for (index_t j = 0; j < agents_count_; j++)
+		for (index_t i = 0; i < agents_count_; i++)
 		{
-			if (i == j)
-				continue;
+			for (index_t j = 0; j < agents_count_; j++)
+			{
+				if (i == j)
+					continue;
 
-			if (dims_ == 1)
-				solve_pair<1>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
-							  repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
-							  adhesion_affinity_.get(), agent_types_.get());
-			else if (dims_ == 2)
-				solve_pair<2>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
-							  repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
-							  adhesion_affinity_.get(), agent_types_.get());
-			else if (dims_ == 3)
-				solve_pair<3>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
-							  repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
-							  adhesion_affinity_.get(), agent_types_.get());
+				if (dims_ == 1)
+					solve_pair<1>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+								  repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
+								  adhesion_affinity_.get(), agent_types_.get());
+				else if (dims_ == 2)
+					solve_pair<2>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+								  repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
+								  adhesion_affinity_.get(), agent_types_.get());
+				else if (dims_ == 3)
+					solve_pair<3>(i, j, agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+								  repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
+								  adhesion_affinity_.get(), agent_types_.get());
+			}
 		}
-	}
 
-	// Update positions based on velocities
-	for (index_t i = 0; i < agents_count_; i++)
-	{
-		for (index_t d = 0; d < dims_; d++)
+		// Update positions based on velocities
+		for (index_t i = 0; i < agents_count_; i++)
 		{
-			positions_[i * dims_ + d] += velocities_[i * dims_ + d] * timestep_;
-			velocities_[i * dims_ + d] = 0;
+			for (index_t d = 0; d < dims_; d++)
+			{
+				positions_[i * dims_ + d] += velocities_[i * dims_ + d] * timestep_;
+				velocities_[i * dims_ + d] = 0;
+			}
 		}
 	}
 }
@@ -96,6 +99,7 @@ void reference_solver<real_t>::initialize(const nlohmann::json&, const problem_t
 {
 	dims_ = static_cast<index_t>(problem.dims);
 	timestep_ = static_cast<real_t>(problem.timestep);
+	iterations_ = static_cast<index_t>(problem.iterations);
 	agents_count_ = static_cast<index_t>(problem.agents_count);
 	agent_types_count_ = static_cast<index_t>(problem.agent_types_count);
 

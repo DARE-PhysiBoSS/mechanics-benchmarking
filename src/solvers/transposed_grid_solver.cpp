@@ -161,9 +161,6 @@ static constexpr void solve_pair(
 			{
 				for (index_t j = 0; j < rhs_count; j++)
 				{
-					if (i == j)
-						continue;
-
 					// std::cout << "Solving pair: (" << i << ", " << j << ")" << std::endl;
 					solve_pair_scalar<dims>(
 						try_skip_repulsion, try_skip_adhesion, i, j, agent_types_count, lhs_velocity_x, lhs_velocity_y,
@@ -236,8 +233,6 @@ static constexpr void solve_pair(
 
 		for (index_t rhs = 0; rhs < rhs_count - lanes + 1; rhs++)
 		{
-			if (rhs == lhs)
-				continue;
 			// std::cout << "Solving vector: ([" << lhs << "," << lhs + lanes << "], [" << rhs << "," << rhs + lanes
 			// << "])"
 			// 		  << std::endl;
@@ -471,107 +466,110 @@ void solve_voxel_pair(voxel_data<real_t, index_t>& lhs, voxel_data<real_t, index
 template <typename real_t>
 void transposed_grid_solver<real_t>::solve()
 {
+	for (index_t iter = 0; iter < iterations_; iter++)
+	{
 // Process voxel pairs for interactions
 #pragma omp parallel for schedule(static) collapse(3)
-	for (index_t x = 0; x < grid_dims_[0]; x++)
-	{
-		for (index_t y = 0; y < grid_dims_[1]; y++)
+		for (index_t x = 0; x < grid_dims_[0]; x++)
 		{
-			for (index_t z = 0; z < grid_dims_[2]; z++)
+			for (index_t y = 0; y < grid_dims_[1]; y++)
 			{
-				index_t voxel_idx = x + y * grid_dims_[0] + z * grid_dims_[0] * grid_dims_[1];
-				voxel_data<real_t, index_t>& current_voxel = grid_current_[voxel_idx];
-				index_t current_voxel_agent_count = voxel_agent_counts_[voxel_idx].load(std::memory_order_relaxed);
-
-				// Iterate over neighboring voxels
-				for (index_t dx = -1; dx <= 1; dx++)
+				for (index_t z = 0; z < grid_dims_[2]; z++)
 				{
-					index_t nx = x + dx;
-					if (nx < 0 || nx >= grid_dims_[0])
-						continue;
+					index_t voxel_idx = x + y * grid_dims_[0] + z * grid_dims_[0] * grid_dims_[1];
+					voxel_data<real_t, index_t>& current_voxel = grid_current_[voxel_idx];
+					index_t current_voxel_agent_count = voxel_agent_counts_[voxel_idx].load(std::memory_order_relaxed);
 
-					for (index_t dy = -1; dy <= 1; dy++)
+					// Iterate over neighboring voxels
+					for (index_t dx = -1; dx <= 1; dx++)
 					{
-						index_t ny = y + dy;
-						if (ny < 0 || ny >= grid_dims_[1])
+						index_t nx = x + dx;
+						if (nx < 0 || nx >= grid_dims_[0])
 							continue;
 
-						for (index_t dz = -1; dz <= 1; dz++)
+						for (index_t dy = -1; dy <= 1; dy++)
 						{
-							index_t nz = z + dz;
-							if (nz < 0 || nz >= grid_dims_[2])
+							index_t ny = y + dy;
+							if (ny < 0 || ny >= grid_dims_[1])
 								continue;
 
-							index_t neighbor_idx = nx + ny * grid_dims_[0] + nz * grid_dims_[0] * grid_dims_[1];
-							voxel_data<real_t, index_t>& neighbor_voxel = grid_current_[neighbor_idx];
-							index_t neighbor_voxel_agent_count =
-								voxel_agent_counts_[neighbor_idx].load(std::memory_order_relaxed);
+							for (index_t dz = -1; dz <= 1; dz++)
+							{
+								index_t nz = z + dz;
+								if (nz < 0 || nz >= grid_dims_[2])
+									continue;
+
+								index_t neighbor_idx = nx + ny * grid_dims_[0] + nz * grid_dims_[0] * grid_dims_[1];
+								voxel_data<real_t, index_t>& neighbor_voxel = grid_current_[neighbor_idx];
+								index_t neighbor_voxel_agent_count =
+									voxel_agent_counts_[neighbor_idx].load(std::memory_order_relaxed);
 
 
-							if (current_voxel_agent_count == 0 || neighbor_voxel_agent_count == 0)
-								continue;
+								if (current_voxel_agent_count == 0 || neighbor_voxel_agent_count == 0)
+									continue;
 
-							// std::cout << "Processing voxel pair: (" << voxel_idx << ", " << neighbor_idx << ")"
-							// 		  << " with agent counts: (" << current_voxel_agent_count << ", "
-							// 		  << neighbor_voxel_agent_count << ")" << std::endl;
+								// std::cout << "Processing voxel pair: (" << voxel_idx << ", " << neighbor_idx << ")"
+								// 		  << " with agent counts: (" << current_voxel_agent_count << ", "
+								// 		  << neighbor_voxel_agent_count << ")" << std::endl;
 
-							// Process interaction between current and neighbor voxel
-							if (dims_ == 1)
-								solve_voxel_pair<1>(current_voxel, neighbor_voxel, current_voxel_agent_count,
-													neighbor_voxel_agent_count, try_skip_repulsion_, try_skip_adhesion_,
-													agent_types_count_);
-							else if (dims_ == 2)
-								solve_voxel_pair<2>(current_voxel, neighbor_voxel, current_voxel_agent_count,
-													neighbor_voxel_agent_count, try_skip_repulsion_, try_skip_adhesion_,
-													agent_types_count_);
-							else if (dims_ == 3)
-								solve_voxel_pair<3>(current_voxel, neighbor_voxel, current_voxel_agent_count,
-													neighbor_voxel_agent_count, try_skip_repulsion_, try_skip_adhesion_,
-													agent_types_count_);
+								// Process interaction between current and neighbor voxel
+								if (dims_ == 1)
+									solve_voxel_pair<1>(current_voxel, neighbor_voxel, current_voxel_agent_count,
+														neighbor_voxel_agent_count, try_skip_repulsion_,
+														try_skip_adhesion_, agent_types_count_);
+								else if (dims_ == 2)
+									solve_voxel_pair<2>(current_voxel, neighbor_voxel, current_voxel_agent_count,
+														neighbor_voxel_agent_count, try_skip_repulsion_,
+														try_skip_adhesion_, agent_types_count_);
+								else if (dims_ == 3)
+									solve_voxel_pair<3>(current_voxel, neighbor_voxel, current_voxel_agent_count,
+														neighbor_voxel_agent_count, try_skip_repulsion_,
+														try_skip_adhesion_, agent_types_count_);
+							}
 						}
 					}
 				}
 			}
 		}
-	}
 
-	// Update positions based on velocities and copy data back
+		// Update positions based on velocities and copy data back
 #pragma omp parallel for schedule(static)
-	for (index_t voxel_idx = 0; voxel_idx < grid_dims_[0] * grid_dims_[1] * grid_dims_[2]; voxel_idx++)
-	{
-		voxel_data<real_t, index_t>& voxel = grid_current_[voxel_idx];
-		index_t agent_count = voxel_agent_counts_[voxel_idx].load(std::memory_order_relaxed);
-		voxel_agent_counts_[voxel_idx].store(0, std::memory_order_relaxed);
-
-		for (index_t local_idx = 0; local_idx < agent_count; local_idx++)
+		for (index_t voxel_idx = 0; voxel_idx < grid_dims_[0] * grid_dims_[1] * grid_dims_[2]; voxel_idx++)
 		{
-			voxel.positionsx[local_idx] += voxel.velocitiesx[local_idx] * timestep_;
-			voxel.velocitiesx[local_idx] = 0;
+			voxel_data<real_t, index_t>& voxel = grid_current_[voxel_idx];
+			index_t agent_count = voxel_agent_counts_[voxel_idx].load(std::memory_order_relaxed);
+			voxel_agent_counts_[voxel_idx].store(0, std::memory_order_relaxed);
 
-			if (dims_ > 1)
+			for (index_t local_idx = 0; local_idx < agent_count; local_idx++)
 			{
-				voxel.positionsy[local_idx] += voxel.velocitiesy[local_idx] * timestep_;
-				voxel.velocitiesy[local_idx] = 0;
-			}
+				voxel.positionsx[local_idx] += voxel.velocitiesx[local_idx] * timestep_;
+				voxel.velocitiesx[local_idx] = 0;
 
-			if (dims_ > 2)
-			{
-				voxel.positionsz[local_idx] += voxel.velocitiesz[local_idx] * timestep_;
-				voxel.velocitiesz[local_idx] = 0;
+				if (dims_ > 1)
+				{
+					voxel.positionsy[local_idx] += voxel.velocitiesy[local_idx] * timestep_;
+					voxel.velocitiesy[local_idx] = 0;
+				}
+
+				if (dims_ > 2)
+				{
+					voxel.positionsz[local_idx] += voxel.velocitiesz[local_idx] * timestep_;
+					voxel.velocitiesz[local_idx] = 0;
+				}
 			}
 		}
-	}
 
-	// Reorder agents into voxels based on updated positions
-	if (dims_ == 1)
-		reorder_agents<1, real_t, index_t>(grid_current_, grid_next_, agent_indices_, voxel_agent_counts_,
-										   agents_count_, grid_dims_, domain_size_, voxel_size_);
-	else if (dims_ == 2)
-		reorder_agents<2, real_t, index_t>(grid_current_, grid_next_, agent_indices_, voxel_agent_counts_,
-										   agents_count_, grid_dims_, domain_size_, voxel_size_);
-	else if (dims_ == 3)
-		reorder_agents<3, real_t, index_t>(grid_current_, grid_next_, agent_indices_, voxel_agent_counts_,
-										   agents_count_, grid_dims_, domain_size_, voxel_size_);
+		// Reorder agents into voxels based on updated positions
+		if (dims_ == 1)
+			reorder_agents<1, real_t, index_t>(grid_current_, grid_next_, agent_indices_, voxel_agent_counts_,
+											   agents_count_, grid_dims_, domain_size_, voxel_size_);
+		else if (dims_ == 2)
+			reorder_agents<2, real_t, index_t>(grid_current_, grid_next_, agent_indices_, voxel_agent_counts_,
+											   agents_count_, grid_dims_, domain_size_, voxel_size_);
+		else if (dims_ == 3)
+			reorder_agents<3, real_t, index_t>(grid_current_, grid_next_, agent_indices_, voxel_agent_counts_,
+											   agents_count_, grid_dims_, domain_size_, voxel_size_);
+	}
 }
 
 template <typename real_t>
@@ -583,6 +581,7 @@ void transposed_grid_solver<real_t>::initialize(const nlohmann::json& params, co
 
 	dims_ = static_cast<index_t>(problem.dims);
 	timestep_ = static_cast<real_t>(problem.timestep);
+	iterations_ = static_cast<index_t>(problem.iterations);
 	agents_count_ = static_cast<index_t>(problem.agents_count);
 	agent_types_count_ = static_cast<index_t>(problem.agent_types_count);
 	domain_size_ = { static_cast<real_t>(problem.domain_size[0]), static_cast<real_t>(problem.domain_size[1]),

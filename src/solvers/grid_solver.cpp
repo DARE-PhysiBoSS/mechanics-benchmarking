@@ -107,26 +107,49 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 template <typename real_t>
 void grid_solver<real_t>::solve()
 {
-	bool is_2d = grid_.is_grid_2d();
-	int grid_size = grid_.get_grid_size();
-#pragma omp parallel for
-	for (int i = 0; i < grid_size; ++i)
+	for (index_t iter = 0; iter < iterations_; ++iter)
 	{
-		const std::vector<std::size_t>& agents_in_voxel = grid_.get_agents_in_voxel(i);
-		const std::vector<std::size_t>& neighbours_indices = grid_.get_moore_indices(i);
+		bool is_2d = grid_.is_grid_2d();
+		int grid_size = grid_.get_grid_size();
 
-		for (std::size_t j = 0; j < agents_in_voxel.size(); ++j)
+#pragma omp parallel for
+		for (int i = 0; i < grid_size; ++i)
 		{
-			index_t agent_id = agents_in_voxel[j];
-			for (std::size_t k = 0; k < neighbours_indices.size(); ++k) // neighbors potntials
+			const std::vector<std::size_t>& agents_in_voxel = grid_.get_agents_in_voxel(i);
+			const std::vector<std::size_t>& neighbours_indices = grid_.get_moore_indices(i);
+
+			for (std::size_t j = 0; j < agents_in_voxel.size(); ++j)
 			{
-				index_t neighbour_voxel = neighbours_indices[k];
-				std::vector<std::size_t> agents_in_neighbour = grid_.get_agents_in_voxel(neighbour_voxel);
-
-				for (std::size_t n = 0; n < agents_in_neighbour.size(); ++n)
+				index_t agent_id = agents_in_voxel[j];
+				for (std::size_t k = 0; k < neighbours_indices.size(); ++k) // neighbors potntials
 				{
-					index_t neighbour_id = agents_in_neighbour[n];
+					index_t neighbour_voxel = neighbours_indices[k];
+					std::vector<std::size_t> agents_in_neighbour = grid_.get_agents_in_voxel(neighbour_voxel);
 
+					for (std::size_t n = 0; n < agents_in_neighbour.size(); ++n)
+					{
+						index_t neighbour_id = agents_in_neighbour[n];
+
+						if (is_2d)
+							solve_pair<2, false>(try_skip_repulsion_, try_skip_adhesion_, agent_id, neighbour_id,
+												 agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+												 repulsion_coeff_.get(), adhesion_coeff_.get(),
+												 max_adhesion_distance_.get(), adhesion_affinity_.get(),
+												 agent_types_.get());
+						else
+							solve_pair<3, false>(try_skip_repulsion_, try_skip_adhesion_, agent_id, neighbour_id,
+												 agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
+												 repulsion_coeff_.get(), adhesion_coeff_.get(),
+												 max_adhesion_distance_.get(), adhesion_affinity_.get(),
+												 agent_types_.get());
+					}
+				}
+				// self voxel
+				for (std::size_t k = 0; k < agents_in_voxel.size(); ++k)
+				{
+					index_t neighbour_id = agents_in_voxel[k];
+					if (agent_id == neighbour_id)
+						continue;
 					if (is_2d)
 						solve_pair<2, false>(try_skip_repulsion_, try_skip_adhesion_, agent_id, neighbour_id,
 											 agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
@@ -141,66 +164,49 @@ void grid_solver<real_t>::solve()
 											 agent_types_.get());
 				}
 			}
-			// self voxel
-			for (std::size_t k = 0; k < agents_in_voxel.size(); ++k)
-			{
-				index_t neighbour_id = agents_in_voxel[k];
-				if (agent_id == neighbour_id)
-					continue;
-				if (is_2d)
-					solve_pair<2, false>(try_skip_repulsion_, try_skip_adhesion_, agent_id, neighbour_id,
-										 agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
-										 repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
-										 adhesion_affinity_.get(), agent_types_.get());
-				else
-					solve_pair<3, false>(try_skip_repulsion_, try_skip_adhesion_, agent_id, neighbour_id,
-										 agent_types_count_, velocities_.get(), positions_.get(), radius_.get(),
-										 repulsion_coeff_.get(), adhesion_coeff_.get(), max_adhesion_distance_.get(),
-										 adhesion_affinity_.get(), agent_types_.get());
-			}
 		}
-	}
 
 
 // Update positions based on velocities
 #pragma omp parallel for schedule(static)
-	for (index_t i = 0; i < agents_count_; i++)
-	{
-		for (index_t d = 0; d < dims_; d++)
+		for (index_t i = 0; i < agents_count_; i++)
 		{
-			positions_[i * dims_ + d] += velocities_[i * dims_ + d] * timestep_;
-			velocities_[i * dims_ + d] = 0;
+			for (index_t d = 0; d < dims_; d++)
+			{
+				positions_[i * dims_ + d] += velocities_[i * dims_ + d] * timestep_;
+				velocities_[i * dims_ + d] = 0;
+			}
 		}
-	}
 
-	// update cells' grid position
+		// update cells' grid position
 
-	for (std::size_t i = 0; i < grid_.get_grid_size(); i++)
-	{
-		std::vector<std::size_t> agents_in_voxel = grid_.get_agents_in_voxel(i);
-		for (std::size_t j = 0; j < agents_in_voxel.size();)
+		for (std::size_t i = 0; i < grid_.get_grid_size(); i++)
 		{
-			std::size_t agent_id = agents_in_voxel[j];
-
-			std::vector<real_t> pos(3, 0.0);
-
-			for (int d = 0; d < dims_; d++)
+			std::vector<std::size_t> agents_in_voxel = grid_.get_agents_in_voxel(i);
+			for (std::size_t j = 0; j < agents_in_voxel.size();)
 			{
-				pos[d] = static_cast<real_t>(positions_[agent_id * dims_ + d]);
+				std::size_t agent_id = agents_in_voxel[j];
+
+				std::vector<real_t> pos(3, 0.0);
+
+				for (int d = 0; d < dims_; d++)
+				{
+					pos[d] = static_cast<real_t>(positions_[agent_id * dims_ + d]);
+				}
+
+				std::size_t new_vox = grid_.voxel_index(pos);
+
+				if (new_vox != i)
+				{
+					std::swap(agents_in_voxel[j], agents_in_voxel.back());
+					agents_in_voxel.pop_back();
+
+					// --- insert into the new voxel ---
+					grid_.get_agents_in_voxel(new_vox).push_back(agent_id);
+				}
+				else
+					++j;
 			}
-
-			std::size_t new_vox = grid_.voxel_index(pos);
-
-			if (new_vox != i)
-			{
-				std::swap(agents_in_voxel[j], agents_in_voxel.back());
-				agents_in_voxel.pop_back();
-
-				// --- insert into the new voxel ---
-				grid_.get_agents_in_voxel(new_vox).push_back(agent_id);
-			}
-			else
-				++j;
 		}
 	}
 }
@@ -214,6 +220,7 @@ void grid_solver<real_t>::initialize(const nlohmann::json& params, const problem
 
 	dims_ = static_cast<index_t>(problem.dims);
 	timestep_ = static_cast<real_t>(problem.timestep);
+	iterations_ = static_cast<index_t>(problem.iterations);
 	agents_count_ = static_cast<index_t>(problem.agents_count);
 	agent_types_count_ = static_cast<index_t>(problem.agent_types_count);
 

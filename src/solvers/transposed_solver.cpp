@@ -365,44 +365,50 @@ void transposed_solver<real_t>::solve()
 	using tag_t = hn::ScalableTag<real_t>;
 	HWY_LANES_CONSTEXPR int block_size = hn::Lanes(tag_t());
 
-#pragma omp parallel for schedule(static)
-	for (index_t i = 0; i < agents_count_; i += block_size)
+#pragma omp parallel
+	for (index_t iteration = 0; iteration < iterations_; iteration++)
 	{
-		if (dims_ == 1)
-			solve_pair<1>(try_skip_repulsion_, try_skip_adhesion_, i, agents_count_, agent_types_count_,
-						  velocitiesx_.get(), velocitiesy_.get(), velocitiesz_.get(), positionsx_.get(),
-						  positionsy_.get(), positionsz_.get(), radius_.get(), repulsion_coeff_.get(),
-						  adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
-						  agent_types_.get());
-		else if (dims_ == 2)
-			solve_pair<2>(try_skip_repulsion_, try_skip_adhesion_, i, agents_count_, agent_types_count_,
-						  velocitiesx_.get(), velocitiesy_.get(), velocitiesz_.get(), positionsx_.get(),
-						  positionsy_.get(), positionsz_.get(), radius_.get(), repulsion_coeff_.get(),
-						  adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
-						  agent_types_.get());
-		else if (dims_ == 3)
-			solve_pair<3>(try_skip_repulsion_, try_skip_adhesion_, i, agents_count_, agent_types_count_,
-						  velocitiesx_.get(), velocitiesy_.get(), velocitiesz_.get(), positionsx_.get(),
-						  positionsy_.get(), positionsz_.get(), radius_.get(), repulsion_coeff_.get(),
-						  adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
-						  agent_types_.get());
-	}
+#pragma omp for schedule(static)
+		for (index_t i = 0; i < agents_count_; i += block_size)
+		{
+			if (dims_ == 1)
+				solve_pair<1>(try_skip_repulsion_, try_skip_adhesion_, i, agents_count_, agent_types_count_,
+							  velocitiesx_.get(), velocitiesy_.get(), velocitiesz_.get(), positionsx_.get(),
+							  positionsy_.get(), positionsz_.get(), radius_.get(), repulsion_coeff_.get(),
+							  adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
+							  agent_types_.get());
+			else if (dims_ == 2)
+				solve_pair<2>(try_skip_repulsion_, try_skip_adhesion_, i, agents_count_, agent_types_count_,
+							  velocitiesx_.get(), velocitiesy_.get(), velocitiesz_.get(), positionsx_.get(),
+							  positionsy_.get(), positionsz_.get(), radius_.get(), repulsion_coeff_.get(),
+							  adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
+							  agent_types_.get());
+			else if (dims_ == 3)
+				solve_pair<3>(try_skip_repulsion_, try_skip_adhesion_, i, agents_count_, agent_types_count_,
+							  velocitiesx_.get(), velocitiesy_.get(), velocitiesz_.get(), positionsx_.get(),
+							  positionsy_.get(), positionsz_.get(), radius_.get(), repulsion_coeff_.get(),
+							  adhesion_coeff_.get(), max_adhesion_distance_.get(), adhesion_affinity_.get(),
+							  agent_types_.get());
+		}
+
+#pragma omp barrier
 
 // Update positions based on velocities
-#pragma omp parallel for schedule(static)
-	for (index_t i = 0; i < agents_count_; i++)
-	{
-		positionsx_[i] += velocitiesx_[i] * timestep_;
-		velocitiesx_[i] = 0;
-		if (dims_ > 1)
+#pragma omp for schedule(static)
+		for (index_t i = 0; i < agents_count_; i++)
 		{
-			positionsy_[i] += velocitiesy_[i] * timestep_;
-			velocitiesy_[i] = 0;
-		}
-		if (dims_ > 2)
-		{
-			positionsz_[i] += velocitiesz_[i] * timestep_;
-			velocitiesz_[i] = 0;
+			positionsx_[i] += velocitiesx_[i] * timestep_;
+			velocitiesx_[i] = 0;
+			if (dims_ > 1)
+			{
+				positionsy_[i] += velocitiesy_[i] * timestep_;
+				velocitiesy_[i] = 0;
+			}
+			if (dims_ > 2)
+			{
+				positionsz_[i] += velocitiesz_[i] * timestep_;
+				velocitiesz_[i] = 0;
+			}
 		}
 	}
 }
@@ -415,6 +421,7 @@ void transposed_solver<real_t>::initialize(const nlohmann::json& params, const p
 
 	dims_ = static_cast<index_t>(problem.dims);
 	timestep_ = static_cast<real_t>(problem.timestep);
+	iterations_ = static_cast<index_t>(problem.iterations);
 	agents_count_ = static_cast<index_t>(problem.agents_count);
 	agent_types_count_ = static_cast<index_t>(problem.agent_types_count);
 

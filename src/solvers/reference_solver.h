@@ -18,6 +18,7 @@ class reference_solver : public mechanics_solver
 
 	index_t dims_;
 	real_t timestep_;
+	index_t iterations_;
 	index_t agents_count_;
 	index_t agent_types_count_;
 

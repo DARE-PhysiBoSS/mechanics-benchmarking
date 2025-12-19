@@ -44,6 +44,7 @@ class transposed_grid_solver : public mechanics_solver
 
 	index_t dims_;
 	real_t timestep_;
+	index_t iterations_;
 	index_t agents_count_;
 	index_t agent_types_count_;
 	std::array<real_t, 3> domain_size_;
