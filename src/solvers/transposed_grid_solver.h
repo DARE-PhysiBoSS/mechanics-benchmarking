@@ -1,6 +1,6 @@
 #pragma once
 
-#include <atomic>
+#include <mutex>
 #include <type_traits>
 
 #include "../mechanics_solver.h"
@@ -39,8 +39,8 @@ class transposed_grid_solver : public mechanics_solver
 	using index_t = std::conditional_t<std::is_same_v<real_t, float>, int32_t, int64_t>;
 
 	std::unique_ptr<agent_grid_idx<index_t>[]> agent_indices_;
-	std::unique_ptr<std::atomic<index_t>[]> voxel_agent_counts_;
-	std::unique_ptr<voxel_data<real_t, index_t>[]> grid_current_, grid_next_;
+	std::unique_ptr<voxel_data<real_t, index_t>[]> grid_;
+	std::unique_ptr<std::mutex[]> mutexes_;
 
 	index_t dims_;
 	real_t timestep_;
