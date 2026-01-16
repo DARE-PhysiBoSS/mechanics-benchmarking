@@ -151,11 +151,31 @@ static constexpr void solve_pair(
 	using index_simd_t = hn::Vec<index_tag_t>;
 	HWY_LANES_CONSTEXPR index_t lanes = (index_t)hn::Lanes(tag_t());
 
+	if (rhs_count < lanes)
+	{
+		// Process all lhs agents against all rhs agents (scalar)
+		for (index_t lhs = 0; lhs < lhs_count; lhs++)
+		{
+			for (index_t rhs = 0; rhs < rhs_count; rhs++)
+			{
+				// std::cout << "Solving pair: (" << lhs << ", " << rhs << ")" << std::endl;
+				solve_pair_scalar<dims>(
+					try_skip_repulsion, try_skip_adhesion, lhs, rhs, agent_types_count, lhs_velocity_x, lhs_velocity_y,
+					lhs_velocity_z, lhs_position_x, lhs_position_y, lhs_position_z, lhs_radius, lhs_repulsion_coeff,
+					lhs_adhesion_coeff, lhs_relative_maximum_adhesion_distance, lhs_adhesion_affinity, lhs_agent_type,
+					rhs_position_x, rhs_position_y, rhs_position_z, rhs_radius, rhs_repulsion_coeff, rhs_adhesion_coeff,
+					rhs_relative_maximum_adhesion_distance, rhs_adhesion_affinity, rhs_agent_type);
+			}
+		}
+
+		return;
+	}
+
 	// Process all lhs agents against all rhs agents
 	for (index_t lhs = 0; lhs < lhs_count; lhs += lanes)
 	{
 		// Handle scalar remainder
-		if (lhs + lanes > lhs_count || rhs_count < lanes)
+		if (lhs + lanes > lhs_count)
 		{
 			for (index_t i = lhs; i < lhs_count; i++)
 			{
@@ -389,8 +409,8 @@ void reorder_agents(std::unique_ptr<voxel_data<real_t, index_t>[]>& grid,
 					std::unique_ptr<agent_grid_idx<index_t>[]>& agent_indices, std::unique_ptr<std::mutex[]>& mutexes_,
 					std::array<index_t, 3> grid_dims_, std::array<real_t, 3> voxel_size_, index_t agent_types_count_)
 {
-// Reorder agents into voxels based on their grid indices
-#pragma omp parallel for schedule(static) collapse(3)
+	// Reorder agents into voxels based on their grid indices
+	// #pragma omp parallel for schedule(static) collapse(3)
 	for (index_t x = 0; x < grid_dims_[0]; x++)
 	{
 		for (index_t y = 0; y < grid_dims_[1]; y++)
@@ -488,29 +508,30 @@ void reorder_agents(std::unique_ptr<voxel_data<real_t, index_t>[]>& grid,
 						}
 						voxel.agent_types[local_idx] = voxel.agent_types[last_idx];
 
-						voxel.agent_indices.pop_back();
-						voxel.positionsx.pop_back();
-						if constexpr (dims > 1)
-							voxel.positionsy.pop_back();
-						if constexpr (dims > 2)
-							voxel.positionsz.pop_back();
-						voxel.velocitiesx.pop_back();
-						if constexpr (dims > 1)
-							voxel.velocitiesy.pop_back();
-						if constexpr (dims > 2)
-							voxel.velocitiesz.pop_back();
-						voxel.radius.pop_back();
-						voxel.repulsion_coeff.pop_back();
-						voxel.adhesion_coeff.pop_back();
-						voxel.max_adhesion_distance.pop_back();
-						for (index_t type_idx = 0; type_idx < agent_types_count_; ++type_idx)
-						{
-							voxel.adhesion_affinity.pop_back();
-						}
-						voxel.agent_types.pop_back();
-
 						local_idx--; // Stay at the same index for next iteration
 					}
+
+					// Remove the last element (which was either moved or is the one we're relocating)
+					voxel.agent_indices.pop_back();
+					voxel.positionsx.pop_back();
+					if constexpr (dims > 1)
+						voxel.positionsy.pop_back();
+					if constexpr (dims > 2)
+						voxel.positionsz.pop_back();
+					voxel.velocitiesx.pop_back();
+					if constexpr (dims > 1)
+						voxel.velocitiesy.pop_back();
+					if constexpr (dims > 2)
+						voxel.velocitiesz.pop_back();
+					voxel.radius.pop_back();
+					voxel.repulsion_coeff.pop_back();
+					voxel.adhesion_coeff.pop_back();
+					voxel.max_adhesion_distance.pop_back();
+					for (index_t type_idx = 0; type_idx < agent_types_count_; ++type_idx)
+					{
+						voxel.adhesion_affinity.pop_back();
+					}
+					voxel.agent_types.pop_back();
 				}
 			}
 		}
