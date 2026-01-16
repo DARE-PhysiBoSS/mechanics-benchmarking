@@ -131,7 +131,7 @@ static constexpr void solve_pair_scalar(
 		lhs_velocity_z[lhs] += force * position_difference_z;
 }
 
-template <std::size_t dims, typename index_t, typename real_t>
+template <std::size_t dims, typename index_t, typename real_t, typename tag_t, typename index_tag_t>
 static constexpr void solve_pair(
 	bool try_skip_repulsion, bool try_skip_adhesion, index_t lhs_count, index_t rhs_count, index_t agent_types_count,
 	real_t* __restrict__ lhs_velocity_x, real_t* __restrict__ lhs_velocity_y, real_t* __restrict__ lhs_velocity_z,
@@ -145,26 +145,40 @@ static constexpr void solve_pair(
 	const real_t* __restrict__ rhs_adhesion_coeff, const real_t* __restrict__ rhs_relative_maximum_adhesion_distance,
 	const real_t* __restrict__ rhs_adhesion_affinity, const index_t* __restrict__ rhs_agent_type)
 {
-	using tag_t = hn::ScalableTag<real_t>;
 	using simd_t = hn::Vec<tag_t>;
-	using index_tag_t = hn::ScalableTag<index_t>;
 	using index_simd_t = hn::Vec<index_tag_t>;
 	HWY_LANES_CONSTEXPR index_t lanes = (index_t)hn::Lanes(tag_t());
 
 	if (rhs_count < lanes)
 	{
-		// Process all lhs agents against all rhs agents (scalar)
-		for (index_t lhs = 0; lhs < lhs_count; lhs++)
+		if constexpr (lanes > 1)
 		{
-			for (index_t rhs = 0; rhs < rhs_count; rhs++)
+			using half_tag_t = hn::Half<tag_t>;
+			using half_index_tag_t = hn::Half<index_tag_t>;
+			solve_pair<dims, index_t, real_t, half_tag_t, half_index_tag_t>(
+				try_skip_repulsion, try_skip_adhesion, lhs_count, rhs_count, agent_types_count, lhs_velocity_x,
+				lhs_velocity_y, lhs_velocity_z, lhs_position_x, lhs_position_y, lhs_position_z, lhs_radius,
+				lhs_repulsion_coeff, lhs_adhesion_coeff, lhs_relative_maximum_adhesion_distance, lhs_adhesion_affinity,
+				lhs_agent_type, rhs_position_x, rhs_position_y, rhs_position_z, rhs_radius, rhs_repulsion_coeff,
+				rhs_adhesion_coeff, rhs_relative_maximum_adhesion_distance, rhs_adhesion_affinity, rhs_agent_type);
+		}
+		else
+		{
+			// Process all lhs agents against all rhs agents (scalar)
+			for (index_t lhs = 0; lhs < lhs_count; lhs++)
 			{
-				// std::cout << "Solving pair: (" << lhs << ", " << rhs << ")" << std::endl;
-				solve_pair_scalar<dims>(
-					try_skip_repulsion, try_skip_adhesion, lhs, rhs, agent_types_count, lhs_velocity_x, lhs_velocity_y,
-					lhs_velocity_z, lhs_position_x, lhs_position_y, lhs_position_z, lhs_radius, lhs_repulsion_coeff,
-					lhs_adhesion_coeff, lhs_relative_maximum_adhesion_distance, lhs_adhesion_affinity, lhs_agent_type,
-					rhs_position_x, rhs_position_y, rhs_position_z, rhs_radius, rhs_repulsion_coeff, rhs_adhesion_coeff,
-					rhs_relative_maximum_adhesion_distance, rhs_adhesion_affinity, rhs_agent_type);
+				for (index_t rhs = 0; rhs < rhs_count; rhs++)
+				{
+					// recursively halve here
+					// std::cout << "Solving pair: (" << lhs << ", " << rhs << ")" << std::endl;
+					solve_pair_scalar<dims>(
+						try_skip_repulsion, try_skip_adhesion, lhs, rhs, agent_types_count, lhs_velocity_x,
+						lhs_velocity_y, lhs_velocity_z, lhs_position_x, lhs_position_y, lhs_position_z, lhs_radius,
+						lhs_repulsion_coeff, lhs_adhesion_coeff, lhs_relative_maximum_adhesion_distance,
+						lhs_adhesion_affinity, lhs_agent_type, rhs_position_x, rhs_position_y, rhs_position_z,
+						rhs_radius, rhs_repulsion_coeff, rhs_adhesion_coeff, rhs_relative_maximum_adhesion_distance,
+						rhs_adhesion_affinity, rhs_agent_type);
+				}
 			}
 		}
 
@@ -177,18 +191,35 @@ static constexpr void solve_pair(
 		// Handle scalar remainder
 		if (lhs + lanes > lhs_count)
 		{
-			for (index_t i = lhs; i < lhs_count; i++)
+			if constexpr (lanes > 1)
 			{
-				for (index_t j = 0; j < rhs_count; j++)
+				using half_tag_t = hn::Half<tag_t>;
+				using half_index_tag_t = hn::Half<index_tag_t>;
+				solve_pair<dims, index_t, real_t, half_tag_t, half_index_tag_t>(
+					try_skip_repulsion, try_skip_adhesion, lhs_count - lhs, rhs_count, agent_types_count,
+					lhs_velocity_x + lhs, lhs_velocity_y + lhs, lhs_velocity_z + lhs, lhs_position_x + lhs,
+					lhs_position_y + lhs, lhs_position_z + lhs, lhs_radius + lhs, lhs_repulsion_coeff + lhs,
+					lhs_adhesion_coeff + lhs, lhs_relative_maximum_adhesion_distance + lhs,
+					lhs_adhesion_affinity + lhs * agent_types_count, lhs_agent_type + lhs, rhs_position_x,
+					rhs_position_y, rhs_position_z, rhs_radius, rhs_repulsion_coeff, rhs_adhesion_coeff,
+					rhs_relative_maximum_adhesion_distance, rhs_adhesion_affinity, rhs_agent_type);
+			}
+			else
+			{
+				for (index_t i = lhs; i < lhs_count; i++)
 				{
-					// std::cout << "Solving pair: (" << i << ", " << j << ")" << std::endl;
-					solve_pair_scalar<dims>(
-						try_skip_repulsion, try_skip_adhesion, i, j, agent_types_count, lhs_velocity_x, lhs_velocity_y,
-						lhs_velocity_z, lhs_position_x, lhs_position_y, lhs_position_z, lhs_radius, lhs_repulsion_coeff,
-						lhs_adhesion_coeff, lhs_relative_maximum_adhesion_distance, lhs_adhesion_affinity,
-						lhs_agent_type, rhs_position_x, rhs_position_y, rhs_position_z, rhs_radius, rhs_repulsion_coeff,
-						rhs_adhesion_coeff, rhs_relative_maximum_adhesion_distance, rhs_adhesion_affinity,
-						rhs_agent_type);
+					for (index_t j = 0; j < rhs_count; j++)
+					{
+						// recursively halve here
+						// std::cout << "Solving pair: (" << i << ", " << j << ")" << std::endl;
+						solve_pair_scalar<dims>(
+							try_skip_repulsion, try_skip_adhesion, i, j, agent_types_count, lhs_velocity_x,
+							lhs_velocity_y, lhs_velocity_z, lhs_position_x, lhs_position_y, lhs_position_z, lhs_radius,
+							lhs_repulsion_coeff, lhs_adhesion_coeff, lhs_relative_maximum_adhesion_distance,
+							lhs_adhesion_affinity, lhs_agent_type, rhs_position_x, rhs_position_y, rhs_position_z,
+							rhs_radius, rhs_repulsion_coeff, rhs_adhesion_coeff, rhs_relative_maximum_adhesion_distance,
+							rhs_adhesion_affinity, rhs_agent_type);
+					}
 				}
 			}
 
@@ -542,13 +573,17 @@ template <std::size_t dims, typename real_t, typename index_t>
 void solve_voxel_pair(voxel_data<real_t, index_t>& lhs, voxel_data<real_t, index_t>& rhs, index_t lhs_count,
 					  index_t rhs_count, bool try_skip_repulsion, bool try_skip_adhesion, index_t agent_types_count)
 {
-	solve_pair<dims>(try_skip_repulsion, try_skip_adhesion, lhs_count, rhs_count, agent_types_count,
-					 lhs.velocitiesx.data(), lhs.velocitiesy.data(), lhs.velocitiesz.data(), lhs.positionsx.data(),
-					 lhs.positionsy.data(), lhs.positionsz.data(), lhs.radius.data(), lhs.repulsion_coeff.data(),
-					 lhs.adhesion_coeff.data(), lhs.max_adhesion_distance.data(), lhs.adhesion_affinity.data(),
-					 lhs.agent_types.data(), rhs.positionsx.data(), rhs.positionsy.data(), rhs.positionsz.data(),
-					 rhs.radius.data(), rhs.repulsion_coeff.data(), rhs.adhesion_coeff.data(),
-					 rhs.max_adhesion_distance.data(), rhs.adhesion_affinity.data(), rhs.agent_types.data());
+	using tag_t = hn::ScalableTag<real_t>;
+	using index_tag_t = hn::ScalableTag<index_t>;
+
+	solve_pair<dims, index_t, real_t, tag_t, index_tag_t>(
+		try_skip_repulsion, try_skip_adhesion, lhs_count, rhs_count, agent_types_count, lhs.velocitiesx.data(),
+		lhs.velocitiesy.data(), lhs.velocitiesz.data(), lhs.positionsx.data(), lhs.positionsy.data(),
+		lhs.positionsz.data(), lhs.radius.data(), lhs.repulsion_coeff.data(), lhs.adhesion_coeff.data(),
+		lhs.max_adhesion_distance.data(), lhs.adhesion_affinity.data(), lhs.agent_types.data(), rhs.positionsx.data(),
+		rhs.positionsy.data(), rhs.positionsz.data(), rhs.radius.data(), rhs.repulsion_coeff.data(),
+		rhs.adhesion_coeff.data(), rhs.max_adhesion_distance.data(), rhs.adhesion_affinity.data(),
+		rhs.agent_types.data());
 }
 
 template <typename real_t>
