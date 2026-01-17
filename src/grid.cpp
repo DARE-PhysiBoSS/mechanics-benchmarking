@@ -1,11 +1,6 @@
-// Example template: I will replace these with the real signatures from grid.h
-
 #include "grid.h"
 
 #include <cstdint>
-#include <utility>
-
-
 
 template <typename real_t>
 std::size_t Grid<real_t>::get_grid_size() const
@@ -16,27 +11,23 @@ std::size_t Grid<real_t>::get_grid_size() const
 template <typename real_t>
 std::vector<std::size_t>& Grid<real_t>::get_agents_in_voxel(std::size_t voxel_index)
 {
-	return (grid_cells[voxel_index]);
+	return grid_cells[voxel_index];
 }
 
 template <typename real_t>
-std::vector<std::size_t>& Grid<real_t>::get_moore_indices(std::size_t voxel_index)
+const std::vector<std::size_t>& Grid<real_t>::get_moore_indices(std::size_t voxel_index) const
 {
-	return (moore_neighbours[voxel_index]);
+	return moore_neighbours[voxel_index];
 }
 
 template <typename real_t>
 void Grid<real_t>::create_moore_2d()
 {
 	moore_neighbours.resize(grid_cells.size());
-	for (std::size_t i = 0; i < grid_cells.size(); ++i)
-	{
-		moore_neighbours[i].clear();
-	}
 
-	for (int x = 0; x < static_cast<int>(grid_size_x_); ++x)
+	for (std::size_t x = 0; x < grid_size_x_; ++x)
 	{
-		for (int y = 0; y < static_cast<int>(grid_size_y_); ++y)
+		for (std::size_t y = 0; y < grid_size_y_; ++y)
 		{
 			std::size_t center_index = y + x * grid_size_y_;
 
@@ -59,6 +50,10 @@ void Grid<real_t>::create_moore_2d()
 						{
 							moore_neighbours[center_index].push_back(neighbour_index);
 						}
+						else
+						{
+							throw std::out_of_range("Neighbour index out of range in create_moore_2d");
+						}
 					}
 				}
 			}
@@ -70,16 +65,12 @@ template <typename real_t>
 void Grid<real_t>::create_moore_3d()
 {
 	moore_neighbours.resize(grid_cells.size());
-	for (std::size_t i = 0; i < grid_cells.size(); ++i)
-	{
-		moore_neighbours[i].clear();
-	}
 
-	for (int x = 0; x < static_cast<int>(grid_size_x_); ++x)
+	for (std::size_t x = 0; x < grid_size_x_; ++x)
 	{
-		for (int y = 0; y < static_cast<int>(grid_size_y_); ++y)
+		for (std::size_t y = 0; y < grid_size_y_; ++y)
 		{
-			for (int z = 0; z < static_cast<int>(grid_size_z_); ++z)
+			for (std::size_t z = 0; z < grid_size_z_; ++z)
 			{
 				std::size_t center_index = z + y * grid_size_z_ + x * grid_size_z_ * grid_size_y_;
 
@@ -111,8 +102,6 @@ void Grid<real_t>::create_moore_3d()
 	}
 }
 
-
-
 template <typename real_t>
 Grid<real_t>::Grid(std::vector<real_t> domain_size, std::vector<real_t> voxel_size)
 {
@@ -136,10 +125,6 @@ Grid<real_t>::Grid(std::vector<real_t> domain_size, std::vector<real_t> voxel_si
 	std::int64_t total_grid_size = static_cast<std::int64_t>(grid_size_x_) * static_cast<std::int64_t>(grid_size_y_)
 								   * static_cast<std::int64_t>(grid_size_z_);
 	grid_cells.resize(total_grid_size);
-	for (auto& cell : grid_cells)
-	{
-		cell = std::vector<std::size_t>(0);
-	}
 
 	if (is_grid_2d())
 	{
@@ -191,36 +176,37 @@ bool Grid<real_t>::is_grid_2d() const
 }
 
 template <typename real_t>
-std::size_t Grid<real_t>::voxel_index(std::vector<real_t> position)
+std::size_t Grid<real_t>::voxel_index(const real_t* position)
 {
-	std::size_t index = 0;
 	if (is_grid_2d())
 	{
-		std::size_t ix = static_cast<std::size_t>(position[0] / dx_);
-		std::size_t iy = static_cast<std::size_t>(position[1] / dy_);
-		index = iy + ix * grid_size_y_;
+		std::size_t ix = static_cast<std::size_t>(std::max((real_t)0.0, position[0]) / dx_);
+		ix = std::min(ix, grid_size_x_ - 1);
+		std::size_t iy = static_cast<std::size_t>(std::max((real_t)0.0, position[1]) / dy_);
+		iy = std::min(iy, grid_size_y_ - 1);
+		return iy + ix * grid_size_y_;
 	}
 	else
 	{
-		std::size_t ix = static_cast<std::size_t>(position[0] / dx_);
-		std::size_t iy = static_cast<std::size_t>(position[1] / dy_);
-		std::size_t iz = static_cast<std::size_t>(position[2] / dz_);
-		index = iz + iy * grid_size_z_ + ix * grid_size_z_ * grid_size_y_;
+		std::size_t ix = static_cast<std::size_t>(std::max((real_t)0.0, position[0]) / dx_);
+		ix = std::min(ix, grid_size_x_ - 1);
+		std::size_t iy = static_cast<std::size_t>(std::max((real_t)0.0, position[1]) / dy_);
+		iy = std::min(iy, grid_size_y_ - 1);
+		std::size_t iz = static_cast<std::size_t>(std::max((real_t)0.0, position[2]) / dz_);
+		iz = std::min(iz, grid_size_z_ - 1);
+		return iz + iy * grid_size_z_ + ix * grid_size_z_ * grid_size_y_;
 	}
-	if (index >= grid_cells.size())
-		return grid_cells.size() - 1;
-	return index;
 }
 
 template <typename real_t>
-void Grid<real_t>::insert_agent(std::vector<real_t> position, std::size_t agent_id)
+void Grid<real_t>::insert_agent(const real_t* position, std::size_t agent_id)
 {
 	std::size_t voxel_idx = voxel_index(position);
 	grid_cells[voxel_idx].push_back(agent_id);
 }
 
 template <typename real_t>
-std::vector<std::size_t> Grid<real_t>::get_grid_coordinates(std::vector<real_t> position)
+std::vector<std::size_t> Grid<real_t>::get_grid_coordinates(const real_t* position)
 {
 	int dim = is_grid_2d() ? 2 : 3;
 	std::vector<std::size_t> coords(dim, 0);
@@ -254,22 +240,6 @@ std::vector<std::size_t> Grid<real_t>::get_grid_coordinates(std::size_t voxel_in
 
 	return coords;
 }
-
-template <typename real_t>
-Grid<real_t>::~Grid()
-{
-	/*
-	for (auto cell : grid_cells)
-	{
-		delete cell;
-	}
-	for (auto neighbours : moore_neighbours)
-	{
-		delete neighbours;
-	}*/
-}
-
-
 
 template class Grid<float>;
 template class Grid<double>;

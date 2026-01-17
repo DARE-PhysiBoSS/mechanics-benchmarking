@@ -110,10 +110,10 @@ void grid_solver<real_t>::solve()
 	for (index_t iter = 0; iter < iterations_; ++iter)
 	{
 		bool is_2d = grid_.is_grid_2d();
-		int grid_size = grid_.get_grid_size();
+		std::size_t grid_size = grid_.get_grid_size();
 
 #pragma omp parallel for
-		for (int i = 0; i < grid_size; ++i)
+		for (std::size_t i = 0; i < grid_size; ++i)
 		{
 			const std::vector<std::size_t>& agents_in_voxel = grid_.get_agents_in_voxel(i);
 			const std::vector<std::size_t>& neighbours_indices = grid_.get_moore_indices(i);
@@ -121,10 +121,10 @@ void grid_solver<real_t>::solve()
 			for (std::size_t j = 0; j < agents_in_voxel.size(); ++j)
 			{
 				index_t agent_id = agents_in_voxel[j];
-				for (std::size_t k = 0; k < neighbours_indices.size(); ++k) // neighbors potntials
+				for (std::size_t k = 0; k < neighbours_indices.size(); ++k) // neighbors potentials
 				{
 					index_t neighbour_voxel = neighbours_indices[k];
-					std::vector<std::size_t> agents_in_neighbour = grid_.get_agents_in_voxel(neighbour_voxel);
+					const std::vector<std::size_t>& agents_in_neighbour = grid_.get_agents_in_voxel(neighbour_voxel);
 
 					for (std::size_t n = 0; n < agents_in_neighbour.size(); ++n)
 					{
@@ -144,6 +144,7 @@ void grid_solver<real_t>::solve()
 												 agent_types_.get());
 					}
 				}
+
 				// self voxel
 				for (std::size_t k = 0; k < agents_in_voxel.size(); ++k)
 				{
@@ -180,29 +181,22 @@ void grid_solver<real_t>::solve()
 
 		// update cells' grid position
 
-		for (std::size_t i = 0; i < grid_.get_grid_size(); i++)
+		for (std::size_t current_voxel_id = 0; current_voxel_id < grid_.get_grid_size(); current_voxel_id++)
 		{
-			std::vector<std::size_t> agents_in_voxel = grid_.get_agents_in_voxel(i);
+			std::vector<std::size_t>& agents_in_voxel = grid_.get_agents_in_voxel(current_voxel_id);
 			for (std::size_t j = 0; j < agents_in_voxel.size();)
 			{
 				std::size_t agent_id = agents_in_voxel[j];
 
-				std::vector<real_t> pos(3, 0.0);
+				std::size_t new_voxel_id = grid_.voxel_index(positions_.get() + agent_id * dims_);
 
-				for (int d = 0; d < dims_; d++)
-				{
-					pos[d] = static_cast<real_t>(positions_[agent_id * dims_ + d]);
-				}
-
-				std::size_t new_vox = grid_.voxel_index(pos);
-
-				if (new_vox != i)
+				if (new_voxel_id != current_voxel_id)
 				{
 					std::swap(agents_in_voxel[j], agents_in_voxel.back());
 					agents_in_voxel.pop_back();
 
 					// --- insert into the new voxel ---
-					grid_.get_agents_in_voxel(new_vox).push_back(agent_id);
+					grid_.get_agents_in_voxel(new_voxel_id).push_back(agent_id);
 				}
 				else
 					++j;
@@ -248,12 +242,7 @@ void grid_solver<real_t>::initialize(const nlohmann::json& params, const problem
 	grid_ = Grid<real_t>(grid_domain, voxel_size);
 	for (index_t i = 0; i < agents_count_; ++i)
 	{
-		std::vector<real_t> pos(problem.dims);
-		for (size_t d = 0; d < problem.dims; ++d)
-		{
-			pos[d] = positions_[i * problem.dims + d];
-		}
-		grid_.insert_agent(pos, i);
+		grid_.insert_agent(positions_.get() + i * problem.dims, i);
 	}
 }
 
