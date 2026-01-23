@@ -68,9 +68,9 @@ int main(int argc, char* argv[])
 	}
 
 	// Validate that at least one operation is specified
-	if (!validate && !benchmark && !run)
+	if (!validate && !benchmark && !run && !profile)
 	{
-		std::cerr << "Error: At least one of --validate, --benchmark, or --run must be specified" << std::endl;
+		std::cerr << "Error: At least one of --validate, --benchmark, --run, or --profile must be specified" << std::endl;
 		return 1;
 	}
 
