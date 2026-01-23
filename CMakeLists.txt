@@ -24,4 +24,6 @@ endif()
 
 target_link_libraries(
   mechanize PRIVATE argparse::argparse nlohmann_json::nlohmann_json hwy::hwy
-                    OpenMP::OpenMP_CXX)
+                    )
+
+target_include_directories(mechanize PRIVATE "/home/asmelko/Desktop/diffusion-benchmarking/.rave/)

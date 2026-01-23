@@ -7,6 +7,7 @@
 #include "../perf_utils.h"
 #include "solver_helper.h"
 
+#include "rave_user_events.h"
 
 template <std::size_t dims, bool use_symmetry, typename index_t, typename real_t>
 static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion, index_t lhs, index_t rhs,
@@ -108,6 +109,9 @@ static constexpr void solve_pair(bool try_skip_repulsion, bool try_skip_adhesion
 template <typename real_t>
 void grid_solver<real_t>::solve()
 {
+	rave_restart_trace();
+	rave_start_trace();
+
 	for (index_t iter = 0; iter < iterations_; ++iter)
 	{
 		bool is_2d = grid_.is_grid_2d();
@@ -223,6 +227,7 @@ void grid_solver<real_t>::solve()
 			}
 		}
 	}
+rave_stop_trace();
 }
 
 template <typename real_t>

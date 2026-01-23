@@ -2,8 +2,8 @@
     "warmup_time": 2.0,
     "outer_iterations": 10,
     "use_symmetry": false,
-    "try_skip_repulsion": false,
-    "try_skip_adhesion": false,
+    "try_skip_repulsion": true,
+    "try_skip_adhesion": true,
     "voxel_size": [
         30.0,
         30.0,

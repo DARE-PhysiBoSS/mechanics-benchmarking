@@ -1,5 +1,5 @@
 {
-    "version": 6,
+    "version": 2,
     "configurePresets": [
         {
             "name": "_root-config",
@@ -12,8 +12,8 @@
                 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
                 "CMAKE_C_FLAGS_DEBUG_INIT": "-Wall -Wextra -Wpedantic -fsanitize=address -fsanitize=leak -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=undefined -fsanitize-undefined-trap-on-error -march=native",
                 "CMAKE_CXX_FLAGS_DEBUG_INIT": "-Wall -Wextra -Wpedantic -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=undefined -fsanitize-undefined-trap-on-error -march=native",
-                "CMAKE_C_FLAGS_RELEASE_INIT": "-Wall -Wextra -Wpedantic -march=native",
-                "CMAKE_CXX_FLAGS_RELEASE_INIT": "-Wall -Wextra -Wpedantic -march=native"
+                "CMAKE_C_FLAGS_RELEASE_INIT": "-Wall -Wextra -Wpedantic ",
+                "CMAKE_CXX_FLAGS_RELEASE_INIT": "-Wall -Wextra -Wpedantic -O3 -ffast-math -mepi -mllvm -combiner-store-merging=0 -mllvm -vectorizer-use-vp-strided-load-store -mcpu=avispado -mllvm -disable-loop-idiom-memcpy -mllvm -disable-loop-idiom-memset -Xclang -target-feature -Xclang +does-not-implement-vszext -Xclang -target-feature -Xclang +does-not-implement-tu -mllvm -riscv-uleb128-reloc=0 -fno-slp-vectorize"
             }
         },
         {
