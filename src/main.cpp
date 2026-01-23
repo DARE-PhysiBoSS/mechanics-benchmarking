@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 
 #include "algorithms.h"
+#include "perf_utils.h"
 #include "problem.h"
 
 // Helper function to load JSON from file
@@ -32,6 +33,7 @@ int main(int argc, char* argv[])
 	group.add_argument("--validate").help("Validate algorithm correctness").default_value(false).implicit_value(true);
 	group.add_argument("--benchmark").help("Benchmark algorithm performance").default_value(false).implicit_value(true);
 	group.add_argument("--run").nargs(0, 1).help("Run algorithm and optionally output to FILE");
+	group.add_argument("--profile").help("Profile using PAPI counters.").default_value(false).implicit_value(true);
 	program.add_argument("--verbose").help("Enable verbose output").default_value(false).implicit_value(true);
 	program.add_argument("--double").help("Use double precision").default_value(false).implicit_value(true);
 
@@ -54,6 +56,7 @@ int main(int argc, char* argv[])
 	bool validate = program.get<bool>("--validate");
 	bool benchmark = program.get<bool>("--benchmark");
 	bool verbose = program.get<bool>("--verbose");
+	bool profile = program.get<bool>("--profile");
 	bool double_precision = program.get<bool>("--double");
 
 	// Check if --run was provided
@@ -125,6 +128,16 @@ int main(int argc, char* argv[])
 				}
 				std::cout << std::endl;
 			}
+			algs.run(alg, problem, params, output_file);
+		}
+
+		if (profile)
+		{
+			if (verbose)
+			{
+				std::cout << "Profiling algorithm..." << std::endl;
+			}
+			perf_counter::enable();
 			algs.run(alg, problem, params, output_file);
 		}
 	}
